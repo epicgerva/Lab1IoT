@@ -18,12 +18,12 @@ void app_main(void)
     // Refresca para enviar los datos al LED
     strip->refresh(strip, 100);
 
-    // Espera 5 segundos
-    vTaskDelay(pdMS_TO_TICKS(5000));
+    // // Espera 5 segundos
+    // vTaskDelay(pdMS_TO_TICKS(5000));
 
-    // Apaga el LED
-    strip->clear(strip, 100);
+    // // Apaga el LED
+    // strip->clear(strip, 100);
 
-    // Libera recursos
-    strip->del(strip);
+    // // Libera recursos
+    // strip->del(strip);
 }
