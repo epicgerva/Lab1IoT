@@ -9,5 +9,9 @@
     "idf.toolsPathWin": "C:\\Users\\Seba\\ESP-IDF-TD",
     "idf.customExtraVars": {
         "IDF_TARGET": "esp32s2"
+    },
+    "idf.flashType": "UART",
+    "files.associations": {
+        "string.h": "c"
     }
 }
