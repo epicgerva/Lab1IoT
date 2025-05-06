@@ -6,5 +6,6 @@ char exampleArray[ARRAY_SIZE];
 
 void app_main(void)
 {
-
+    exampleData = 1;
+    exampleArray[0] = 'a';
 }
