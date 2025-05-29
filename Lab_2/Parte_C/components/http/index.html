@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Probando servidor</title>
+    <link rel="stylesheet" type="text/css" href="style.css" />
+  </head>
+  <body>
+    <h1>Hola mundo!</h1>
+    <h2 id="currentTime"></h2>
+    <div class="container">
+      <h3>Enviar un mensaje a la placa:</h3>
+      <form action="/enviar" method="post">
+        <label for="data">Mensaje:</label>
+        <input type="text" id="data" name="data_input" required />
+        <input type="submit" value="Enviar" class="submit-button" />
+      </form>
+    </div>
+    <script src="script.js"></script>
+  </body>
+</html>
