@@ -14,8 +14,8 @@
 #define AP_WIFI_CHANNEL 1
 #define AP_MAX_CONNECTIONS 4
 
-#define EXAMPLE_ESP_WIFI_STA_SSID "A"
-#define EXAMPLE_ESP_WIFI_STA_PASS "Teroboelinternet1"
+#define EXAMPLE_ESP_WIFI_STA_SSID "caliope"
+#define EXAMPLE_ESP_WIFI_STA_PASS "sinlugar"
 
 static const char *TAG = "WIFI";
 
