@@ -139,14 +139,10 @@ void init_sta(void)
             .scan_method = WIFI_FAST_SCAN,
             .threshold.authmode = WIFI_AUTH_WPA2_PSK},
     };
-    // Copy SSID and Password from defines
+   
     strncpy((char *)wifi_config.sta.ssid, EXAMPLE_ESP_WIFI_STA_SSID, sizeof(wifi_config.sta.ssid) - 1);
     strncpy((char *)wifi_config.sta.password, EXAMPLE_ESP_WIFI_STA_PASS, sizeof(wifi_config.sta.password) - 1);
-
-    // Ensure null termination if strings were too long (though defines should be checked)
-    wifi_config.sta.ssid[sizeof(wifi_config.sta.ssid) - 1] = '\0';
-    wifi_config.sta.password[sizeof(wifi_config.sta.password) - 1] = '\0';
-
+    
     if (strlen(EXAMPLE_ESP_WIFI_STA_PASS) == 0)
     {
         wifi_config.sta.threshold.authmode = WIFI_AUTH_OPEN;
@@ -159,7 +155,7 @@ void init_sta(void)
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
-    ESP_ERROR_CHECK(esp_wifi_start()); // This will trigger WIFI_EVENT_STA_START
+    ESP_ERROR_CHECK(esp_wifi_start()); 
 
     ESP_LOGI(TAG, "wifi_init_sta finished. Attempting to connect to SSID:%s",
              EXAMPLE_ESP_WIFI_STA_SSID);
