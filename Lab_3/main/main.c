@@ -6,24 +6,16 @@
 #include "wifi.h"
 #include freertos
 
-void TaskA(*var) //blinker LED A
+void TaskA(void *var) //blinker LED A//
 {
-
+    const char *pcTaskName = “Task A is running\n”;
 
     while (1)
     {
         set_led(255, 0, 0);
         delay_s(1);
-        set_led(0, 255, 0);
+        set_led(0,0,0);
         delay_s(1);
-        set_led(0, 0, 255);
-        delay_s(1);
-        set_led(255, 0, 0);
-        delay_ms(200);
-        set_led(0, 255, 0);
-        delay_ms(200);
-        set_led(0, 0, 255);
-        delay_ms(200);
     }
 }
 
@@ -50,10 +42,11 @@ void main(void)
 
     init(TaskA);
     init(TaskB);
-    create TaskA (n,id,p,s,h);
-    create TaskB (n,id,p,s,h);
+    xTaskCreate( TaskC, “Task A”, 1000, NULL, 1, NULL);
+    xTaskCreate( TaskB, “Task B”, 1000, NULL, 1, NULL);
+    xTaskCreate( TaskC, “Task C”, 1000, NULL, 1, NULL);
 
-    start schedule();
+    vTaskStartScheduler();
     while (1)
     {
     }
