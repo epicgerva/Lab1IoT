@@ -22,7 +22,7 @@ void TaskB(*var) //gestiona usb/uart recibir y procesar comandos
 {
  recibe de uart, t=0 va a queue
  t diff 0 va a timer  y cuando termina el timer se pone en queue 
-
+ guarda en var: comando
     while (1)
     {
     }
@@ -42,7 +42,8 @@ void main(void)
 
     init(TaskA);
     init(TaskB);
-    xTaskCreate( TaskC, “Task A”, 1000, NULL, 1, NULL);
+    init(TaskC);
+    xTaskCreate( TaskC, “Task A”, 1000, (void*)comando, 1, NULL);
     xTaskCreate( TaskB, “Task B”, 1000, NULL, 1, NULL);
     xTaskCreate( TaskC, “Task C”, 1000, NULL, 1, NULL);
 
