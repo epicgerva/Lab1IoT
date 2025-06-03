@@ -8,13 +8,12 @@
 
 void TaskA(void *var) //blinker LED A//
 {
-    const char *pcTaskName = “Task A is running\n”;
-
+    
     while (1)
     {
-        set_led(255, 0, 0);
+        TaskC();
         delay_s(1);
-        set_led(0,0,0);
+        TaskC();
         delay_s(1);
     }
 }
@@ -28,8 +27,8 @@ void TaskB(*var) //gestiona usb/uart recibir y procesar comandos
     }
 }
 
-void TaskC(*var) // recibe comandos de leds a modificar a traves de queue
-{
+void TaskC(*var) //on/off del led desde queue, 
+                 //recibe parametros i/o, color
 
 
     while (1)
