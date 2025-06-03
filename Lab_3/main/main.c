@@ -6,9 +6,9 @@
 #include "wifi.h"
 #include freertos
 
-void TaskA(void *var) //blinker LED A//
+void TaskA(void *var) // blinker LED A//
 {
-    
+
     while (1)
     {
         TaskC();
@@ -18,23 +18,23 @@ void TaskA(void *var) //blinker LED A//
     }
 }
 
-void TaskB(*var) //gestiona usb/uart recibir y procesar comandos
+void TaskB(*var) // gestiona usb/uart recibir y procesar comandos
 {
- recibe de uart, t=0 va a queue
- t diff 0 va a timer  y cuando termina el timer se pone en queue 
- guarda en var: comando
-    while (1)
+    recibe de uart, t = 0 va a queue t diff 0 va a timer y cuando termina el timer se pone en queue guarda en var : comando while (1)
     {
+
+    if parametro t=0:  BaseType_t xQueueSendToBack (QueueHandle_t xQueue, const void *pvItemToQueue, TickType_t xTicksToWait);
     }
 }
 
-void TaskC(*var) //on/off del led recibe color desde la queue
-                 //recibe parametros i/o
+void TaskC(*var) {// on/off del led recibe color desde la queue
+                 // recibe parametros i/o
+BaseType_t xQueueReceive(QueueHandle_t xQueue, void*const pvBuffer, TickType_t xTicksToWait);
 
+while (1)
+{
+}
 
-    while (1)
-    {
-    }
 }
 
 void main(void)
@@ -43,11 +43,12 @@ void main(void)
     init(TaskA);
     init(TaskB);
     init(TaskC);
-    xTaskCreate( TaskC, “Task A”, 1000, (void*)comando, 1, NULL);
-    xTaskCreate( TaskB, “Task B”, 1000, NULL, 1, NULL);
-    xTaskCreate( TaskC, “Task C”, 1000, NULL, 1, NULL);
+    xTaskCreate(TaskC, “Task A”, 1000, (void *)comando, 1, NULL);
+    xTaskCreate(TaskB, “Task B”, 1000, NULL, 1, NULL);
+    xTaskCreate(TaskC, “Task C”, 1000, NULL, 1, NULL);
 
     vTaskStartScheduler();
+    commandqueue = xQueueCreate(10, sizeof(comando));
     while (1)
     {
     }
