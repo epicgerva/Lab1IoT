@@ -24,7 +24,10 @@ void TaskB(*var) // gestiona usb/uart recibir y procesar comandos
     {
 
     if parametro t=0:  BaseType_t xQueueSendToBack (QueueHandle_t xQueue, const void *pvItemToQueue, TickType_t xTicksToWait);
+    else:  TimerHandle_t xTimerCreate (const char * const pcTimerName, const TickType_t xTimerPeriod, const UBaseType_t uxAutoReload, void * const pvTimerID,TimerCallbackFunction_t pxCallbackFunction);
     }
+    void vTimerCallback (TimerHandle_t xTimer);//Callback
+
 }
 
 void TaskC(*var) {// on/off del led recibe color desde la queue
