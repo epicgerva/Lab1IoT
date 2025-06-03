@@ -6,7 +6,28 @@
 #include "wifi.h"
 #include freertos
 
-void TaskA(*var)
+void TaskA(*var) //blinker LED A
+{
+
+
+    while (1)
+    {
+        set_led(255, 0, 0);
+        delay_s(1);
+        set_led(0, 255, 0);
+        delay_s(1);
+        set_led(0, 0, 255);
+        delay_s(1);
+        set_led(255, 0, 0);
+        delay_ms(200);
+        set_led(0, 255, 0);
+        delay_ms(200);
+        set_led(0, 0, 255);
+        delay_ms(200);
+    }
+}
+
+void TaskB(*var) //gestiona usb/uart recibir y procesar comandos
 {
 
 
@@ -15,7 +36,7 @@ void TaskA(*var)
     }
 }
 
-void TaskB(*var)
+void TaskC(*var) // recibe comandos de leds a modificar a traves de queue
 {
 
 
