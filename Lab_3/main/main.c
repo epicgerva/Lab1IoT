@@ -4,6 +4,39 @@
 #include "delay.h"
 #include "touch.h"
 #include "wifi.h"
+#include freertos
+
+void TaskA(*var)
+{
+
+
+    while (1)
+    {
+    }
+}
+
+void TaskB(*var)
+{
+
+
+    while (1)
+    {
+    }
+}
+
+void main(void)
+{
+
+    init(TaskA);
+    init(TaskB);
+    create TaskA (n,id,p,s,h);
+    create TaskB (n,id,p,s,h);
+
+    start schedule();
+    while (1)
+    {
+    }
+}
 
 void app_main(void)
 {
