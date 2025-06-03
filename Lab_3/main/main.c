@@ -20,15 +20,16 @@ void TaskA(void *var) //blinker LED A//
 
 void TaskB(*var) //gestiona usb/uart recibir y procesar comandos
 {
-
+ recibe de uart, t=0 va a queue
+ t diff 0 va a timer  y cuando termina el timer se pone en queue 
 
     while (1)
     {
     }
 }
 
-void TaskC(*var) //on/off del led desde queue, 
-                 //recibe parametros i/o, color
+void TaskC(*var) //on/off del led recibe color desde la queue
+                 //recibe parametros i/o
 
 
     while (1)
