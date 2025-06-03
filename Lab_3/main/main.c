@@ -23,21 +23,23 @@ void TaskB(*var) // gestiona usb/uart recibir y procesar comandos
     recibe de uart, t = 0 va a queue t diff 0 va a timer y cuando termina el timer se pone en queue guarda en var : comando while (1)
     {
 
-    if parametro t=0:  BaseType_t xQueueSendToBack (QueueHandle_t xQueue, const void *pvItemToQueue, TickType_t xTicksToWait);
-    else:  TimerHandle_t xTimerCreate (const char * const pcTimerName, const TickType_t xTimerPeriod, const UBaseType_t uxAutoReload, void * const pvTimerID,TimerCallbackFunction_t pxCallbackFunction);
+        if parametro
+            t = 0 : BaseType_t xQueueSendToBack(QueueHandle_t xQueue, const void *pvItemToQueue, TickType_t xTicksToWait);
+        else:  TimerHandle_t xTimerCreate (const char * const pcTimerName, const TickType_t xTimerPeriod, const UBaseType_t uxAutoReload, void * const pvTimerID,TimerCallbackFunction_t pxCallbackFunction);
     }
-    void vTimerCallback (TimerHandle_t xTimer);//Callback
-
+    void vTimerCallback(TimerHandle_t xTimer); // Callback
+    {
+    }
 }
 
-void TaskC(*var) {// on/off del led recibe color desde la queue
-                 // recibe parametros i/o
-BaseType_t xQueueReceive(QueueHandle_t xQueue, void*const pvBuffer, TickType_t xTicksToWait);
+void TaskC(*var)
+{   // on/off del led recibe color desde la queue
+    // recibe parametros i/o
+    BaseType_t xQueueReceive(QueueHandle_t xQueue, void *const pvBuffer, TickType_t xTicksToWait);
 
-while (1)
-{
-}
-
+    while (1)
+    {
+    }
 }
 
 void main(void)
