@@ -4,9 +4,26 @@
 #include "delay.h"
 #include "touch.h"
 #include "wifi.h"
-#include freertos
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/queue.h"
+#include "freertos/timers.h"
 
-void TaskA(void *var) // blinker LED A//
+
+/*******************************************************************************************************************************************
+
+
+Hay que crear un semaforo para el uso de la variable color
+
+
+******************************************************************************************************************************************
+
+
+TASK A:
+    - Solamente prende y apaga el led (NO HACE NADA MAS QUE ESO)
+    - Usa color como parametro 
+
+void TaskA(void *var) 
 {
 
     while (1)
@@ -18,6 +35,16 @@ void TaskA(void *var) // blinker LED A//
     }
 }
 
+
+*******************************************************************************************************************************************
+TASK B: 
+    - Recibe comandos por UART (Consola) y los parsea. 
+    - Parmaetros: color, tiempo. Ej.1: (Amarillo, 5), Ej.2: (Rojo,10).
+    - Crea una queue poniendo los pares en la fila. 
+    - Mayor prioridad. 
+   (No defini led_cmd_t y led_cmd_queue), CHEQUEAR EL CODIGO
+   
+   
 void TaskB(*var) // gestiona usb/uart recibir y procesar comandos
 {
     recibe de uart, t = 0 va a queue t diff 0 va a timer y cuando termina el timer se pone en queue guarda en var : comando while (1)
@@ -30,7 +57,75 @@ void TaskB(*var) // gestiona usb/uart recibir y procesar comandos
     void vTimerCallback(TimerHandle_t xTimer); // Callback
     {
     }
+}*/
+
+
+#define UART_NUM UART_NUM_1
+#define BUF_SIZE 128
+
+// Esta función parsea un comando tipo: "LED 1 20 0 0 1 5\n"
+bool parse_uart_command(const char *buf, led_cmd_t *cmd, uint32_t *delay_s) {
+    int led, r, g, b, on, delay;
+    int n = sscanf(buf, "LED %d %d %d %d %d %d", &led, &r, &g, &b, &on, &delay);
+    if (n == 6) {
+        cmd->led_num = led;
+        cmd->r = r;
+        cmd->g = g;
+        cmd->b = b;
+        cmd->on = on;
+        *delay_s = delay;
+        return true;
+    }
+    return false;
 }
+
+void timer_callback(TimerHandle_t xTimer) {
+    led_cmd_t *cmd = (led_cmd_t *)pvTimerGetTimerID(xTimer);
+    xQueueSend(led_cmd_queue, cmd, 0);
+    vPortFree(cmd);
+    xTimerDelete(xTimer, 0);
+}
+
+void task_usb_uart(void *pvParameters) {
+    uart_config_t uart_config = {
+        .baud_rate = 115200,
+        .data_bits = UART_DATA_8_BITS,
+        .parity    = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE
+    };
+    uart_param_config(UART_NUM, &uart_config);
+    uart_driver_install(UART_NUM, BUF_SIZE * 2, 0, 0, NULL, 0);
+
+    uint8_t data[BUF_SIZE];
+    while (1) {
+        int len = uart_read_bytes(UART_NUM, data, BUF_SIZE - 1, portMAX_DELAY);
+        if (len > 0) {
+            data[len] = 0; // Null-terminate
+            led_cmd_t cmd;
+            uint32_t delay_s;
+            if (parse_uart_command((char*)data, &cmd, &delay_s)) {
+                if (delay_s == 0) {
+                    xQueueSend(led_cmd_queue, &cmd, portMAX_DELAY);
+                } else {
+                    led_cmd_t *cmd_ptr = pvPortMalloc(sizeof(led_cmd_t));
+                    *cmd_ptr = cmd;
+                    TimerHandle_t timer = xTimerCreate("LEDTimer", pdMS_TO_TICKS(delay_s * 1000), pdFALSE, cmd_ptr, timer_callback);
+                    xTimerStart(timer, 0);
+                }
+            }
+        }
+    }
+}
+
+
+/******************************************************************************************************************************************
+
+
+TASK C:
+    - Resive los datos de la task B
+    - Definir timers para cada par color-tiempo
+    - Carga el valor del color en la variable color.
 
 void TaskC(*var)
 {   // on/off del led recibe color desde la queue
@@ -41,6 +136,7 @@ void TaskC(*var)
     {
     }
 }
+********************************************************************************************************************************************/
 
 void main(void)
 {
@@ -58,6 +154,12 @@ void main(void)
     {
     }
 }
+
+
+/******************************************************************************************************************************************
+
+
+(Esto es lo anterior no se que onda con esto)
 
 void app_main(void)
 {
@@ -96,3 +198,4 @@ void app_main(void)
         delay_ms(100);
     }
 }
+*/
