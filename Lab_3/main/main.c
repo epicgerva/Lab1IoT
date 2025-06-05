@@ -52,7 +52,6 @@ void TaskA(void *pvParameters)
     - Mayor prioridad.
 
 
-   */
 void TaskB(*var) // gestiona usb/uart recibir y procesar comandos
 {
     // recibe de uart, t = 0 va a queue t diff 0 va a timer y cuando termina el timer se pone en queue guarda en var : comando while (1)
@@ -71,24 +70,21 @@ void TaskB(*var) // gestiona usb/uart recibir y procesar comandos
 #define UART_NUM UART_NUM_1
 #define BUF_SIZE 128
 
-    // Esta función parsea un comando tipo: "LED 1 20 0 0 1 5\n"
-    bool parse_uart_command(const char *buf, led_cmd_t *cmd, uint32_t *delay_s)
-{
-    int led, r, g, b, on, delay;
-    int n = sscanf(buf, "LED %d %d %d %d %d %d", &led, &r, &g, &b, &on, &delay);
-    if (n == 6)
-    {
-        cmd->led_num = led;
+// Parser para "r g b tiempo"
+bool parse_uart_rgb_command(const char *buf, color_cmd_t *cmd) {
+    int r, g, b, tiempo;
+    int n = sscanf(buf, "%d %d %d %d", &r, &g, &b, &tiempo);
+    if (n == 4) {
         cmd->r = r;
         cmd->g = g;
         cmd->b = b;
-        cmd->on = on;
-        *delay_s = delay;
+        cmd->tiempo = tiempo;
         return true;
     }
     return false;
 }
 
+// Timer callback para encolar el comando cuando corresponde
 void timer_callback(TimerHandle_t xTimer)
 {
     led_cmd_t *cmd = (led_cmd_t *)pvTimerGetTimerID(xTimer);
@@ -97,7 +93,7 @@ void timer_callback(TimerHandle_t xTimer)
     xTimerDelete(xTimer, 0);
 }
 
-void task_usb_uart(void *pvParameters)
+void TaskB(void *pvParameters)
 {
     uart_config_t uart_config = {
         .baud_rate = 115200,
@@ -116,10 +112,9 @@ void task_usb_uart(void *pvParameters)
         {
             data[len] = 0;
             led_cmd_t cmd;
-            uint32_t delay_s;
-            if (parse_uart_command((char *)data, &cmd, &delay_s))
+            if (parse_uart_rgb_command((char *)data, &cmd))
             {
-                if (delay_s == 0)
+                if (cmd.time == 0)
                 {
                     xQueueSend(led_cmd_queue, &cmd, portMAX_DELAY);
                 }
@@ -127,7 +122,7 @@ void task_usb_uart(void *pvParameters)
                 {
                     led_cmd_t *cmd_ptr = pvPortMalloc(sizeof(led_cmd_t));
                     *cmd_ptr = cmd;
-                    TimerHandle_t timer = xTimerCreate("LEDTimer", pdMS_TO_TICKS(delay_s * 1000), pdFALSE, cmd_ptr, timer_callback);
+                    TimerHandle_t timer = xTimerCreate("LEDTimer", pdMS_TO_TICKS(cmd.time * 1000), pdFALSE, cmd_ptr, timer_callback);
                     xTimerStart(timer, 0);
                 }
             }
