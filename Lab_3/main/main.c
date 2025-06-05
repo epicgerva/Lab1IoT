@@ -1,42 +1,55 @@
-#include <stdio.h>
-#include "esp_task_wdt.h"
-#include "led.h"
-#include "delay.h"
-#include "touch.h"
-#include "wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
+#include "freertos/semphr.h"
 #include "freertos/timers.h"
+#include "driver/uart.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define UART_NUM UART_NUM_1
+#define BUF_SIZE 128
+
+typedef struct {
+    int led_num;
+    int r, g, b;
+    int on;
+} led_cmd_t;
+
+typedef struct {
+    int r, g, b;
+} color_t;
+
+QueueHandle_t led_cmd_queue;
+SemaphoreHandle_t xColorMutex;
+color_t color;
 
 
-/*******************************************************************************************************************************************
+*******************************************************************************************************************************************
 
 
-Hay que crear un semaforo para el uso de la variable color
+//Hay que crear un semaforo para el uso de la variable color
 
 
-******************************************************************************************************************************************
 
 
-TASK A:
+/*TASK A:
     - Solamente prende y apaga el led (NO HACE NADA MAS QUE ESO)
-    - Usa color como parametro 
+    - Usa color como parametro */
 
-void TaskA(void *var) 
-{
-
-    while (1)
-    {
-        TaskC();
-        delay_s(1);
-        TaskC();
-        delay_s(1);
+void TaskA(void *pvParameters) {
+    while (1) {
+        if (xSemaphoreTake(xColorMutex, portMAX_DELAY)) {
+            usar_color(color); // tu función de renderizado con color actual
+            xSemaphoreGive(xColorMutex);
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
 
 
-*******************************************************************************************************************************************
+
 TASK B: 
     - Recibe comandos por UART (Consola) y los parsea. 
     - Parmaetros: color, tiempo. Ej.1: (Amarillo, 5), Ej.2: (Rojo,10).
@@ -79,12 +92,14 @@ bool parse_uart_command(const char *buf, led_cmd_t *cmd, uint32_t *delay_s) {
     return false;
 }
 
+
 void timer_callback(TimerHandle_t xTimer) {
-    led_cmd_t *cmd = (led_cmd_t *)pvTimerGetTimerID(xTimer);
+    led_cmd_t *cmd = (led_cmd_t *) pvTimerGetTimerID(xTimer);
     xQueueSend(led_cmd_queue, cmd, 0);
     vPortFree(cmd);
     xTimerDelete(xTimer, 0);
 }
+
 
 void task_usb_uart(void *pvParameters) {
     uart_config_t uart_config = {
@@ -101,7 +116,7 @@ void task_usb_uart(void *pvParameters) {
     while (1) {
         int len = uart_read_bytes(UART_NUM, data, BUF_SIZE - 1, portMAX_DELAY);
         if (len > 0) {
-            data[len] = 0; // Null-terminate
+            data[len] = 0;
             led_cmd_t cmd;
             uint32_t delay_s;
             if (parse_uart_command((char*)data, &cmd, &delay_s)) {
@@ -119,41 +134,51 @@ void task_usb_uart(void *pvParameters) {
 }
 
 
-/******************************************************************************************************************************************
 
 
-TASK C:
-    - Resive los datos de la task B
+/*TASK C:
+    - Recibe los datos de la task B
     - Definir timers para cada par color-tiempo
-    - Carga el valor del color en la variable color.
+    - Carga el valor del color en la variable color.*/
 
-void TaskC(*var)
-{   // on/off del led recibe color desde la queue
-    // recibe parametros i/o
-    BaseType_t xQueueReceive(QueueHandle_t xQueue, void *const pvBuffer, TickType_t xTicksToWait);
+void TaskC(void *pvParameters) {
+    led_cmd_t cmd;
+    while (1) {
+        if (xQueueReceive(led_cmd_queue, &cmd, portMAX_DELAY)) {
+            color_t nuevo_color = {.r = cmd.r, .g = cmd.g, .b = cmd.b};
 
-    while (1)
+            if (xSemaphoreTake(xColorMutex, portMAX_DELAY)) {
+                color = nuevo_color;
+                xSemaphoreGive(xColorMutex);
+            }
+
+            if (cmd.on) {
+                encender_led(cmd.led_num);  // deberías implementar esta función
+            } else {
+                apagar_led(cmd.led_num);    // deberías implementar esta también
+            }
+        }
+    }
+}
+
+
+
+
+
+void app_main(void) {
+    xColorMutex = xSemaphoreCreateMutex();
+    led_cmd_queue = xQueueCreate(10, sizeof(led_cmd_t));
+
+    xTaskCreate(TaskA, "Task A", 2048, NULL, 1, NULL);
+    xTaskCreate(task_usb_uart, "Task B", 4096, NULL, 2, NULL);
+    xTaskCreate(TaskC, "Task C", 2048, NULL, 1, NULL);
+        while (1)
     {
     }
 }
-********************************************************************************************************************************************/
 
-void main(void)
-{
 
-    init(TaskA);
-    init(TaskB);
-    init(TaskC);
-    xTaskCreate(TaskC, “Task A”, 1000, (void *)comando, 1, NULL);
-    xTaskCreate(TaskB, “Task B”, 1000, NULL, 1, NULL);
-    xTaskCreate(TaskC, “Task C”, 1000, NULL, 1, NULL);
 
-    vTaskStartScheduler();
-    commandqueue = xQueueCreate(10, sizeof(comando));
-    while (1)
-    {
-    }
-}
 
 
 /******************************************************************************************************************************************
