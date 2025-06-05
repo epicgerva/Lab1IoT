@@ -13,9 +13,8 @@
 
 typedef struct
 {
-    int led_num;
     int r, g, b;
-    int on;
+    int time;
 } led_cmd_t;
 
 typedef struct
