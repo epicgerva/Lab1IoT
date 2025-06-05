@@ -12,31 +12,24 @@
 #define BUF_SIZE 128
 
 typedef struct {
-    int led_num;
     int r, g, b;
-    int on;
-} led_cmd_t;
+    uint32_t delay_s;
+} color_cmd_t;
 
 typedef struct {
     int r, g, b;
 } color_t;
 
-QueueHandle_t led_cmd_queue;
+QueueHandle_t color_cmd_queue;
 SemaphoreHandle_t xColorMutex;
 color_t color;
 
+// Simula uso del color (por ejemplo, mostrarlo con PWM)
 void usar_color(int r, int g, int b) {
     printf("Usando color RGB(%d, %d, %d)\n", r, g, b);
 }
 
-void encender_led(int led) {
-    printf("Encendiendo LED %d\n", led);
-}
-
-void apagar_led(int led) {
-    printf("Apagando LED %d\n", led);
-}
-
+// TASK A: simplemente usa la variable color actual
 void TaskA(void *pvParameters) {
     while (1) {
         if (xSemaphoreTake(xColorMutex, portMAX_DELAY)) {
@@ -47,13 +40,27 @@ void TaskA(void *pvParameters) {
     }
 }
 
-static bool parse_uart_command(const char *buf, led_cmd_t *cmd) {
-    int n = sscanf(buf, "LED %d %d %d %d %d %u", &cmd->led_num, &cmd->r, &cmd->g, &cmd->b, &cmd->on, &cmd->delay_s);
-    return n == 6;
+// Parseo de comando UART: "LED 255 0 0 5"
+bool parse_uart_command(const char *buf, color_cmd_t *cmd) {
+    int n = sscanf(buf, "LED %d %d %d %lu", &cmd->r, &cmd->g, &cmd->b, &cmd->delay_s);
+    return n == 4;
 }
 
-void task_usb_uart(void *pvParameters)
-{
+// Callback del temporizador: actualiza el color compartido
+static void timer_callback(TimerHandle_t xTimer) {
+    color_cmd_t *cmd = (color_cmd_t *)pvTimerGetTimerID(xTimer);
+    if (xSemaphoreTake(xColorMutex, portMAX_DELAY)) {
+        color.r = cmd->r;
+        color.g = cmd->g;
+        color.b = cmd->b;
+        xSemaphoreGive(xColorMutex);
+    }
+    vPortFree(cmd);
+    xTimerDelete(xTimer, 0);
+}
+
+// TASK B: recibe por UART y manda a la queue (directo o con timer)
+void TaskB(void *pvParameters) {
     uart_config_t uart_config = {
         .baud_rate = 115200,
         .data_bits = UART_DATA_8_BITS,
@@ -64,64 +71,38 @@ void task_usb_uart(void *pvParameters)
     uart_driver_install(UART_NUM, BUF_SIZE * 2, 0, 0, NULL, 0);
 
     uint8_t data[BUF_SIZE];
-    while (1)
-    {
+    while (1) {
         int len = uart_read_bytes(UART_NUM, data, BUF_SIZE - 1, portMAX_DELAY);
-        if (len > 0)
-        {
+        if (len > 0) {
             data[len] = 0;
-            led_cmd_t cmd;
-            uint32_t delay_s;
-            if (parse_uart_command((char *)data, &cmd, &delay_s))
-            {
-                if (delay_s == 0)
-                {
-                    xQueueSend(led_cmd_queue, &cmd, portMAX_DELAY);
-                }
-                else
-                {
-                    led_cmd_t *cmd_ptr = pvPortMalloc(sizeof(led_cmd_t));
-                    *cmd_ptr = cmd;
-                    TimerHandle_t timer = xTimerCreate("LEDTimer", pdMS_TO_TICKS(delay_s * 1000), pdFALSE, cmd_ptr, timer_callback);
-                    xTimerStart(timer, 0);
-                }
+            color_cmd_t cmd;
+            if (parse_uart_command((char *)data, &cmd)) {
+                xQueueSend(color_cmd_queue, &cmd, portMAX_DELAY);
             }
         }
     }
 }
 
-/*TASK C:
-    - Recibe los datos de la task B
-    - Definir timers para cada par color-tiempo
-    - Carga el valor del color en la variable color.*/
-static void timer_callback(TimerHandle_t xTimer) {
-    led_cmd_t *cmd = (led_cmd_t *)pvTimerGetTimerID(xTimer);
-
-    color_t nuevo_color = {.r = cmd->r, .g = cmd->g, .b = cmd->b};
-    if (xSemaphoreTake(xColorMutex, portMAX_DELAY)) {
-        color = nuevo_color;
-        xSemaphoreGive(xColorMutex);
-    }
-
-    if (cmd->on) {
-        encender_led(cmd->led_num);
-    } else {
-        apagar_led(cmd->led_num);
-    }
-
-    vPortFree(cmd);
-    xTimerDelete(xTimer, 0);
-}
+// TASK C: recibe comandos de color y los aplica (con o sin delay)
 void TaskC(void *pvParameters) {
-    led_cmd_t cmd;
+    color_cmd_t cmd;
     while (1) {
-        if (xQueueReceive(led_cmd_queue, &cmd, portMAX_DELAY)) {
+        if (xQueueReceive(color_cmd_queue, &cmd, portMAX_DELAY)) {
             if (cmd.delay_s == 0) {
-                timer_callback((TimerHandle_t)&cmd); // cast dummy handle for immediate call
+                if (xSemaphoreTake(xColorMutex, portMAX_DELAY)) {
+                    color.r = cmd.r;
+                    color.g = cmd.g;
+                    color.b = cmd.b;
+                    xSemaphoreGive(xColorMutex);
+                }
             } else {
-                led_cmd_t *cmd_copy = pvPortMalloc(sizeof(led_cmd_t));
+                color_cmd_t *cmd_copy = pvPortMalloc(sizeof(color_cmd_t));
                 *cmd_copy = cmd;
-                TimerHandle_t timer = xTimerCreate("LEDTimer", pdMS_TO_TICKS(cmd.delay_s * 1000), pdFALSE, cmd_copy, timer_callback);
+                TimerHandle_t timer = xTimerCreate("ColorTimer",
+                                                   pdMS_TO_TICKS(cmd.delay_s * 1000),
+                                                   pdFALSE,
+                                                   cmd_copy,
+                                                   timer_callback);
                 xTimerStart(timer, 0);
             }
         }
@@ -130,11 +111,9 @@ void TaskC(void *pvParameters) {
 
 void app_main(void) {
     xColorMutex = xSemaphoreCreateMutex();
-    led_cmd_queue = xQueueCreate(10, sizeof(led_cmd_t));
+    color_cmd_queue = xQueueCreate(10, sizeof(color_cmd_t));
 
     xTaskCreate(TaskA, "Task A", 2048, NULL, 1, NULL);
     xTaskCreate(TaskB, "Task B", 4096, NULL, 2, NULL);
     xTaskCreate(TaskC, "Task C", 2048, NULL, 1, NULL);
 }
-
-
