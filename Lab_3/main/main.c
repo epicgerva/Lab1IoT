@@ -168,7 +168,7 @@ void app_main(void)
     led_cmd_queue = xQueueCreate(10, sizeof(led_cmd_t));
 
     xTaskCreate(TaskA, "Task A", 2048, NULL, 1, NULL);
-    xTaskCreate(task_usb_uart, "Task B", 4096, NULL, 2, NULL);
+    xTaskCreate(TaskB, "Task B", 4096, NULL, 2, NULL);
     xTaskCreate(TaskC, "Task C", 2048, NULL, 1, NULL);
     while (1)
     {
