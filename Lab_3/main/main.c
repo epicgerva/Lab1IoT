@@ -10,6 +10,8 @@
 
 #define UART_NUM UART_NUM_1
 #define BUF_SIZE 128
+#define UART_TX_PIN (GPIO_NUM_17) // Cambiar según hardware
+#define UART_RX_PIN (GPIO_NUM_16)
 
 typedef struct {
     int r, g, b;
@@ -41,10 +43,41 @@ void TaskA(void *pvParameters) {
     }
 }
 
-// Parseo de comando UART: "LED 255 0 0 5"
+// Parseo de comando UART: "LED 255 0 0 5" o "Rojo 10"
 bool parse_uart_command(const char *buf, color_cmd_t *cmd) {
+    // Intentar formato largo
     int n = sscanf(buf, "LED %d %d %d %lu", &cmd->r, &cmd->g, &cmd->b, &cmd->delay_s);
-    return n == 4;
+    if (n == 4) return true;
+
+    // Intentar formato corto
+    char color_name[16];
+    unsigned int delay;
+    n = sscanf(buf, "%15s %u", color_name, &delay);
+    if (n == 2) {
+        cmd->delay_s = delay;
+        if (strcasecmp(color_name, "Rojo") == 0) {
+            cmd->r = 255; cmd->g = 0; cmd->b = 0;
+        } else if (strcasecmp(color_name, "Verde") == 0) {
+            cmd->r = 0; cmd->g = 255; cmd->b = 0;
+        } else if (strcasecmp(color_name, "Azul") == 0) {
+            cmd->r = 0; cmd->g = 0; cmd->b = 255;
+        } else if (strcasecmp(color_name, "Amarillo") == 0) {
+            cmd->r = 255; cmd->g = 255; cmd->b = 0;
+        } else if (strcasecmp(color_name, "Cian") == 0) {
+            cmd->r = 0; cmd->g = 255; cmd->b = 255;
+        } else if (strcasecmp(color_name, "Magenta") == 0) {
+            cmd->r = 255; cmd->g = 0; cmd->b = 255;
+        } else if (strcasecmp(color_name, "Blanco") == 0) {
+            cmd->r = 255; cmd->g = 255; cmd->b = 255;
+        } else if (strcasecmp(color_name, "Negro") == 0) {
+            cmd->r = 0; cmd->g = 0; cmd->b = 0;
+        } else {
+            return false;
+        }
+        return true;
+    }
+
+    return false;
 }
 
 // Callback del temporizador: actualiza el color compartido
@@ -60,7 +93,7 @@ static void timer_callback(TimerHandle_t xTimer) {
     xTimerDelete(xTimer, 0);
 }
 
-// TASK B: recibe por UART y manda a la queue (directo o con timer)
+// TASK B: recibe por UART y manda a la queue
 void TaskB(void *pvParameters) {
     uart_config_t uart_config = {
         .baud_rate = 115200,
@@ -70,6 +103,7 @@ void TaskB(void *pvParameters) {
         .flow_ctrl = UART_HW_FLOWCTRL_DISABLE};
     uart_param_config(UART_NUM, &uart_config);
     uart_driver_install(UART_NUM, BUF_SIZE * 2, 0, 0, NULL, 0);
+    uart_set_pin(UART_NUM, UART_TX_PIN, UART_RX_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
 
     uint8_t data[BUF_SIZE];
     while (1) {
@@ -79,12 +113,14 @@ void TaskB(void *pvParameters) {
             color_cmd_t cmd;
             if (parse_uart_command((char *)data, &cmd)) {
                 xQueueSend(color_cmd_queue, &cmd, portMAX_DELAY);
+            } else {
+                printf("Comando inválido: %s\n", data);
             }
         }
     }
 }
 
-// TASK C: recibe comandos de color y los aplica (con o sin delay)
+// TASK C: recibe comandos de color y los aplica
 void TaskC(void *pvParameters) {
     color_cmd_t cmd;
     while (1) {
