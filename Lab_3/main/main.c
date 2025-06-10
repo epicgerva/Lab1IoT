@@ -105,8 +105,10 @@ void TaskB(void *pvParameters) {
     uart_driver_install(UART_NUM, BUF_SIZE * 2, 0, 0, NULL, 0);
     uart_set_pin(UART_NUM, UART_TX_PIN, UART_RX_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
     uint8_t data[BUF_SIZE];
+    printf("UART CONFIGURADO");
     while (1) {
         int len = uart_read_bytes(UART_NUM, data, BUF_SIZE - 1, portMAX_DELAY);
+        uart_write_bytes(UART_NUM, data, len);
         if (len > 0) {
             data[len] = 0;
             color_cmd_t cmd;
