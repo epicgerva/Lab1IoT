@@ -7,11 +7,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-
+#include <led.h>
 #define UART_NUM UART_NUM_1
 #define BUF_SIZE 128
-#define UART_TX_PIN (GPIO_NUM_17) // Cambiar según hardware
-#define UART_RX_PIN (GPIO_NUM_16)
+
 
 typedef struct {
     int r, g, b;
@@ -28,7 +27,6 @@ color_t color;
 
 // Simula uso del color (por ejemplo, mostrarlo con PWM)
 void usar_color(int r, int g, int b) {
-    printf("Usando color RGB(%d, %d, %d)\n", r, g, b);
     set_led(r, g, b);
 }
 
@@ -103,7 +101,6 @@ void TaskB(void *pvParameters) {
         .flow_ctrl = UART_HW_FLOWCTRL_DISABLE};
     uart_param_config(UART_NUM, &uart_config);
     uart_driver_install(UART_NUM, BUF_SIZE * 2, 0, 0, NULL, 0);
-    uart_set_pin(UART_NUM, UART_TX_PIN, UART_RX_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
 
     uint8_t data[BUF_SIZE];
     while (1) {
