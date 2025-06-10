@@ -13,12 +13,14 @@
 #define UART_TX_PIN (43) // Cambiar según hardware
 #define UART_RX_PIN (44)
 
-typedef struct {
+typedef struct
+{
     int r, g, b;
     uint32_t delay_s;
 } color_cmd_t;
 
-typedef struct {
+typedef struct
+{
     int r, g, b;
 } color_t;
 
@@ -27,15 +29,20 @@ SemaphoreHandle_t xColorMutex;
 color_t color;
 
 // Simula uso del color (por ejemplo, mostrarlo con PWM)
-void usar_color(int r, int g, int b) {
+void usar_color(int r, int g, int b)
+{
     printf("Usando color RGB(%d, %d, %d)\n", r, g, b);
     set_led(r, g, b);
 }
 
 // TASK A: simplemente usa la variable color actual
-void TaskA(void *pvParameters) {
-    while (1) {
-        if (xSemaphoreTake(xColorMutex, portMAX_DELAY)) {
+void TaskA(void *pvParameters)
+{
+    printf("TASK A");
+    while (1)
+    {
+        if (xSemaphoreTake(xColorMutex, portMAX_DELAY))
+        {
             usar_color(color.r, color.g, color.b);
             xSemaphoreGive(xColorMutex);
         }
@@ -44,34 +51,70 @@ void TaskA(void *pvParameters) {
 }
 
 // Parseo de comando UART: "LED 255 0 0 5" o "Rojo 10"
-bool parse_uart_command(const char *buf, color_cmd_t *cmd) {
+bool parse_uart_command(const char *buf, color_cmd_t *cmd)
+{
     // Intentar formato largo
     int n = sscanf(buf, "LED %d %d %d %lu", &cmd->r, &cmd->g, &cmd->b, &cmd->delay_s);
-    if (n == 4) return true;
+    if (n == 4)
+        return true;
 
     // Intentar formato corto
     char color_name[16];
     unsigned int delay;
     n = sscanf(buf, "%15s %u", color_name, &delay);
-    if (n == 2) {
+    if (n == 2)
+    {
         cmd->delay_s = delay;
-        if (strcasecmp(color_name, "Rojo") == 0) {
-            cmd->r = 255; cmd->g = 0; cmd->b = 0;
-        } else if (strcasecmp(color_name, "Verde") == 0) {
-            cmd->r = 0; cmd->g = 255; cmd->b = 0;
-        } else if (strcasecmp(color_name, "Azul") == 0) {
-            cmd->r = 0; cmd->g = 0; cmd->b = 255;
-        } else if (strcasecmp(color_name, "Amarillo") == 0) {
-            cmd->r = 255; cmd->g = 255; cmd->b = 0;
-        } else if (strcasecmp(color_name, "Cian") == 0) {
-            cmd->r = 0; cmd->g = 255; cmd->b = 255;
-        } else if (strcasecmp(color_name, "Magenta") == 0) {
-            cmd->r = 255; cmd->g = 0; cmd->b = 255;
-        } else if (strcasecmp(color_name, "Blanco") == 0) {
-            cmd->r = 255; cmd->g = 255; cmd->b = 255;
-        } else if (strcasecmp(color_name, "Negro") == 0) {
-            cmd->r = 0; cmd->g = 0; cmd->b = 0;
-        } else {
+        if (strcasecmp(color_name, "Rojo") == 0)
+        {
+            cmd->r = 255;
+            cmd->g = 0;
+            cmd->b = 0;
+        }
+        else if (strcasecmp(color_name, "Verde") == 0)
+        {
+            cmd->r = 0;
+            cmd->g = 255;
+            cmd->b = 0;
+        }
+        else if (strcasecmp(color_name, "Azul") == 0)
+        {
+            cmd->r = 0;
+            cmd->g = 0;
+            cmd->b = 255;
+        }
+        else if (strcasecmp(color_name, "Amarillo") == 0)
+        {
+            cmd->r = 255;
+            cmd->g = 255;
+            cmd->b = 0;
+        }
+        else if (strcasecmp(color_name, "Cian") == 0)
+        {
+            cmd->r = 0;
+            cmd->g = 255;
+            cmd->b = 255;
+        }
+        else if (strcasecmp(color_name, "Magenta") == 0)
+        {
+            cmd->r = 255;
+            cmd->g = 0;
+            cmd->b = 255;
+        }
+        else if (strcasecmp(color_name, "Blanco") == 0)
+        {
+            cmd->r = 255;
+            cmd->g = 255;
+            cmd->b = 255;
+        }
+        else if (strcasecmp(color_name, "Negro") == 0)
+        {
+            cmd->r = 0;
+            cmd->g = 0;
+            cmd->b = 0;
+        }
+        else
+        {
             return false;
         }
         return true;
@@ -81,9 +124,11 @@ bool parse_uart_command(const char *buf, color_cmd_t *cmd) {
 }
 
 // Callback del temporizador: actualiza el color compartido
-static void timer_callback(TimerHandle_t xTimer) {
+static void timer_callback(TimerHandle_t xTimer)
+{
     color_cmd_t *cmd = (color_cmd_t *)pvTimerGetTimerID(xTimer);
-    if (xSemaphoreTake(xColorMutex, portMAX_DELAY)) {
+    if (xSemaphoreTake(xColorMutex, portMAX_DELAY))
+    {
         color.r = cmd->r;
         color.g = cmd->g;
         color.b = cmd->b;
@@ -94,7 +139,9 @@ static void timer_callback(TimerHandle_t xTimer) {
 }
 
 // TASK B: recibe por UART y manda a la queue
-void TaskB(void *pvParameters) {
+void TaskB(void *pvParameters)
+{
+    printf("TASK B");
     uart_config_t uart_config = {
         .baud_rate = 115200,
         .data_bits = UART_DATA_8_BITS,
@@ -106,15 +153,20 @@ void TaskB(void *pvParameters) {
     uart_set_pin(UART_NUM, UART_TX_PIN, UART_RX_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
     uint8_t data[BUF_SIZE];
     printf("UART CONFIGURADO");
-    while (1) {
+    while (1)
+    {
         int len = uart_read_bytes(UART_NUM, data, BUF_SIZE - 1, portMAX_DELAY);
         uart_write_bytes(UART_NUM, data, len);
-        if (len > 0) {
+        if (len > 0)
+        {
             data[len] = 0;
             color_cmd_t cmd;
-            if (parse_uart_command((char *)data, &cmd)) {
+            if (parse_uart_command((char *)data, &cmd))
+            {
                 xQueueSend(color_cmd_queue, &cmd, portMAX_DELAY);
-            } else {
+            }
+            else
+            {
                 printf("Comando inválido: %s\n", data);
             }
         }
@@ -122,18 +174,26 @@ void TaskB(void *pvParameters) {
 }
 
 // TASK C: recibe comandos de color y los aplica
-void TaskC(void *pvParameters) {
+void TaskC(void *pvParameters)
+{
+    printf("TASK C");
     color_cmd_t cmd;
-    while (1) {
-        if (xQueueReceive(color_cmd_queue, &cmd, portMAX_DELAY)) {
-            if (cmd.delay_s == 0) {
-                if (xSemaphoreTake(xColorMutex, portMAX_DELAY)) {
+    while (1)
+    {
+        if (xQueueReceive(color_cmd_queue, &cmd, portMAX_DELAY))
+        {
+            if (cmd.delay_s == 0)
+            {
+                if (xSemaphoreTake(xColorMutex, portMAX_DELAY))
+                {
                     color.r = cmd.r;
                     color.g = cmd.g;
                     color.b = cmd.b;
                     xSemaphoreGive(xColorMutex);
                 }
-            } else {
+            }
+            else
+            {
                 color_cmd_t *cmd_copy = pvPortMalloc(sizeof(color_cmd_t));
                 *cmd_copy = cmd;
                 TimerHandle_t timer = xTimerCreate("ColorTimer",
@@ -147,11 +207,21 @@ void TaskC(void *pvParameters) {
     }
 }
 
-void app_main(void) {
+void app_main(void)
+{
+    printf("APP_MAIN");
+
     xColorMutex = xSemaphoreCreateMutex();
     color_cmd_queue = xQueueCreate(10, sizeof(color_cmd_t));
 
+    printf("QUEUE CONFIGURADA");
+
     xTaskCreate(TaskA, "Task A", 2048, NULL, 1, NULL);
+    printf("TASK A CONFIGURADA");
+
     xTaskCreate(TaskB, "Task B", 2048, NULL, 2, NULL);
+    printf("TASK B CONFIGURADA");
+
     xTaskCreate(TaskC, "Task C", 2048, NULL, 1, NULL);
+    printf("TASK C CONFIGURADA");
 }
