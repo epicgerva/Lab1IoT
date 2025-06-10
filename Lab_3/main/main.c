@@ -27,6 +27,7 @@ color_t color;
 // Simula uso del color (por ejemplo, mostrarlo con PWM)
 void usar_color(int r, int g, int b) {
     printf("Usando color RGB(%d, %d, %d)\n", r, g, b);
+    set_led(r, g, b);
 }
 
 // TASK A: simplemente usa la variable color actual
