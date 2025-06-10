@@ -150,6 +150,6 @@ void app_main(void) {
     color_cmd_queue = xQueueCreate(10, sizeof(color_cmd_t));
 
     xTaskCreate(TaskA, "Task A", 2048, NULL, 1, NULL);
-    xTaskCreate(TaskB, "Task B", 4096, NULL, 2, NULL);
+    xTaskCreate(TaskB, "Task B", 2048, NULL, 2, NULL);
     xTaskCreate(TaskC, "Task C", 2048, NULL, 1, NULL);
 }
