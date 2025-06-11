@@ -4,14 +4,14 @@
 #include "freertos/semphr.h"
 #include "freertos/timers.h"
 #include "driver/uart.h"
+#include "esp_log.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <led.h>
-#define UART_NUM UART_NUM_1
+
+#define UART_NUM UART_NUM_0
 #define BUF_SIZE 128
-#define UART_TX_PIN (43) // Cambiar según hardware
-#define UART_RX_PIN (44)
 
 typedef struct
 {
@@ -27,41 +27,37 @@ typedef struct
 QueueHandle_t color_cmd_queue;
 SemaphoreHandle_t xColorMutex;
 color_t color;
+bool led_on = false;
 
-// Simula uso del color (por ejemplo, mostrarlo con PWM)
-void usar_color(int r, int g, int b)
-{
-    printf("Usando color RGB(%d, %d, %d)\n", r, g, b);
-    set_led(r, g, b);
-}
-
-// TASK A: simplemente usa la variable color actual
+// TASK A: parpadea el led
 void TaskA(void *pvParameters)
 {
-    printf("TASK A");
     while (1)
     {
         if (xSemaphoreTake(xColorMutex, portMAX_DELAY))
         {
-            usar_color(color.r, color.g, color.b);
+            if (led_on)
+            {
+                set_led(0, 0, 0);
+                led_on = false;
+            }
+            else
+            {
+                set_led(color.r, color.g, color.b);
+                led_on = true;
+            }
             xSemaphoreGive(xColorMutex);
         }
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
 
-// Parseo de comando UART: "LED 255 0 0 5" o "Rojo 10"
+// Parseo de comando UART: "Rojo 10"
 bool parse_uart_command(const char *buf, color_cmd_t *cmd)
 {
-    // Intentar formato largo
-    int n = sscanf(buf, "LED %d %d %d %lu", &cmd->r, &cmd->g, &cmd->b, &cmd->delay_s);
-    if (n == 4)
-        return true;
-
-    // Intentar formato corto
     char color_name[16];
     unsigned int delay;
-    n = sscanf(buf, "%15s %u", color_name, &delay);
+    int n = sscanf(buf, "%15s %u", color_name, &delay);
     if (n == 2)
     {
         cmd->delay_s = delay;
@@ -127,36 +123,41 @@ bool parse_uart_command(const char *buf, color_cmd_t *cmd)
 static void timer_callback(TimerHandle_t xTimer)
 {
     color_cmd_t *cmd = (color_cmd_t *)pvTimerGetTimerID(xTimer);
-    if (xSemaphoreTake(xColorMutex, portMAX_DELAY))
+    if (cmd != NULL)
     {
-        color.r = cmd->r;
-        color.g = cmd->g;
-        color.b = cmd->b;
-        xSemaphoreGive(xColorMutex);
+        if (xSemaphoreTake(xColorMutex, portMAX_DELAY))
+        {
+            color.r = cmd->r;
+            color.g = cmd->g;
+            color.b = cmd->b;
+            xSemaphoreGive(xColorMutex);
+        }
+        vPortFree(cmd);
     }
-    vPortFree(cmd);
     xTimerDelete(xTimer, 0);
 }
 
 // TASK B: recibe por UART y manda a la queue
 void TaskB(void *pvParameters)
 {
-    printf("TASK B");
+    ESP_LOGI("TASK B", "TASK B starting");
     uart_config_t uart_config = {
         .baud_rate = 115200,
         .data_bits = UART_DATA_8_BITS,
         .parity = UART_PARITY_DISABLE,
         .stop_bits = UART_STOP_BITS_1,
         .flow_ctrl = UART_HW_FLOWCTRL_DISABLE};
+
     uart_param_config(UART_NUM, &uart_config);
     uart_driver_install(UART_NUM, BUF_SIZE * 2, 0, 0, NULL, 0);
-    uart_set_pin(UART_NUM, UART_TX_PIN, UART_RX_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+    uart_set_pin(UART_NUM, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+
     uint8_t data[BUF_SIZE];
-    printf("UART CONFIGURADO");
+    ESP_LOGI("TASK B", "Ingresá comandos como: 'Rojo 3', 'Verde 5'");
+
     while (1)
     {
-        int len = uart_read_bytes(UART_NUM, data, BUF_SIZE - 1, portMAX_DELAY);
-        uart_write_bytes(UART_NUM, data, len);
+        int len = uart_read_bytes(UART_NUM, data, BUF_SIZE - 1, pdMS_TO_TICKS(1000));
         if (len > 0)
         {
             data[len] = 0;
@@ -165,18 +166,15 @@ void TaskB(void *pvParameters)
             {
                 xQueueSend(color_cmd_queue, &cmd, portMAX_DELAY);
             }
-            else
-            {
-                printf("Comando inválido: %s\n", data);
-            }
         }
+        vTaskDelay(pdMS_TO_TICKS(10)); // Para no saturar la CPU
     }
 }
 
 // TASK C: recibe comandos de color y los aplica
 void TaskC(void *pvParameters)
 {
-    printf("TASK C");
+    ESP_LOGI("TASK C", "TASK C starting");
     color_cmd_t cmd;
     while (1)
     {
@@ -201,6 +199,7 @@ void TaskC(void *pvParameters)
                                                    pdFALSE,
                                                    cmd_copy,
                                                    timer_callback);
+
                 xTimerStart(timer, 0);
             }
         }
@@ -209,19 +208,10 @@ void TaskC(void *pvParameters)
 
 void app_main(void)
 {
-    printf("APP_MAIN");
-
     xColorMutex = xSemaphoreCreateMutex();
     color_cmd_queue = xQueueCreate(10, sizeof(color_cmd_t));
 
-    printf("QUEUE CONFIGURADA");
-
     xTaskCreate(TaskA, "Task A", 2048, NULL, 1, NULL);
-    printf("TASK A CONFIGURADA");
-
     xTaskCreate(TaskB, "Task B", 2048, NULL, 2, NULL);
-    printf("TASK B CONFIGURADA");
-
     xTaskCreate(TaskC, "Task C", 2048, NULL, 1, NULL);
-    printf("TASK C CONFIGURADA");
 }
