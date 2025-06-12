@@ -104,7 +104,7 @@ void TaskB(void *pvParameters)
 
     while (1)
     {
-        int len = uart_read_bytes(UART_NUM, data, BUF_SIZE - 1, pdMS_TO_TICKS(2000));
+        int len = uart_read_bytes(UART_NUM, data, BUF_SIZE - 1, pdMS_TO_TICKS(1000));
         if (len > 0)
         {
             ESP_LOGI("TASK B", "%s", data);
