@@ -1,13 +1,21 @@
 #include "TaskB.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/queue.h"
+#include "freertos/semphr.h"
+#include "freertos/timers.h"
 #include "driver/uart.h"
 #include "esp_log.h"
+#include <stdio.h>
 #include <string.h>
-#include <ctype.h>
+#include <stdlib.h>
+#include <led.h>
 
 #define UART_NUM UART_NUM_0
 #define BUF_SIZE 128
 
-static bool parse_uart_command(const char *buf, color_cmd_t *cmd)
+// Parseo de comando UART: "Rojo 10"
+bool parse_uart_command(const char *buf, color_cmd_t *cmd)
 {
     char color_name[16];
     unsigned int delay;
@@ -16,31 +24,84 @@ static bool parse_uart_command(const char *buf, color_cmd_t *cmd)
     {
         cmd->delay_s = delay;
         if (strcasecmp(color_name, "Rojo") == 0)
-            *cmd = (color_cmd_t){255, 0, 0, delay};
+        {
+            cmd->r = 255;
+            cmd->g = 0;
+            cmd->b = 0;
+        }
         else if (strcasecmp(color_name, "Verde") == 0)
-            *cmd = (color_cmd_t){0, 255, 0, delay};
+        {
+            cmd->r = 0;
+            cmd->g = 255;
+            cmd->b = 0;
+        }
         else if (strcasecmp(color_name, "Azul") == 0)
-            *cmd = (color_cmd_t){0, 0, 255, delay};
+        {
+            cmd->r = 0;
+            cmd->g = 0;
+            cmd->b = 255;
+        }
         else if (strcasecmp(color_name, "Amarillo") == 0)
-            *cmd = (color_cmd_t){255, 255, 0, delay};
+        {
+            cmd->r = 255;
+            cmd->g = 255;
+            cmd->b = 0;
+        }
         else if (strcasecmp(color_name, "Cian") == 0)
-            *cmd = (color_cmd_t){0, 255, 255, delay};
+        {
+            cmd->r = 0;
+            cmd->g = 255;
+            cmd->b = 255;
+        }
         else if (strcasecmp(color_name, "Magenta") == 0)
-            *cmd = (color_cmd_t){255, 0, 255, delay};
+        {
+            cmd->r = 255;
+            cmd->g = 0;
+            cmd->b = 255;
+        }
         else if (strcasecmp(color_name, "Blanco") == 0)
-            *cmd = (color_cmd_t){255, 255, 255, delay};
+        {
+            cmd->r = 255;
+            cmd->g = 255;
+            cmd->b = 255;
+        }
         else if (strcasecmp(color_name, "Negro") == 0)
-            *cmd = (color_cmd_t){0, 0, 0, delay};
+        {
+            cmd->r = 0;
+            cmd->g = 0;
+            cmd->b = 0;
+        }
         else
+        {
             return false;
+        }
         return true;
     }
+
     return false;
 }
 
-static void TaskB(void *pvParameters)
+// Callback del temporizador: actualiza el color compartido
+static void timer_callback(TimerHandle_t xTimer)
 {
-    QueueHandle_t color_cmd_queue = (QueueHandle_t)pvParameters;
+    color_cmd_t *cmd = (color_cmd_t *)pvTimerGetTimerID(xTimer);
+    if (cmd != NULL)
+    {
+        if (xSemaphoreTake(xColorMutex, portMAX_DELAY))
+        {
+            color.r = cmd->r;
+            color.g = cmd->g;
+            color.b = cmd->b;
+            xSemaphoreGive(xColorMutex);
+        }
+        vPortFree(cmd);
+    }
+    xTimerDelete(xTimer, 0);
+}
+
+// TASK B: recibe por UART y manda a la queue
+void TaskB(void *pvParameters)
+{
     ESP_LOGI("TASK B", "TASK B starting");
     uart_config_t uart_config = {
         .baud_rate = 115200,
@@ -61,7 +122,7 @@ static void TaskB(void *pvParameters)
         int len = uart_read_bytes(UART_NUM, data, BUF_SIZE - 1, pdMS_TO_TICKS(500));
         if (len > 0)
         {
-            ESP_LOGI("TASK B","%s",data);
+            ESP_LOGI("TASK B", "%s", data);
             data[len] = 0;
             color_cmd_t cmd;
             if (parse_uart_command((char *)data, &cmd))
@@ -69,11 +130,6 @@ static void TaskB(void *pvParameters)
                 xQueueSend(color_cmd_queue, &cmd, portMAX_DELAY);
             }
         }
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelay(pdMS_TO_TICKS(10)); // Para no saturar la CPU
     }
-}
-
-void start_task_b(QueueHandle_t color_cmd_queue)
-{
-    xTaskCreate(TaskB, "Task B", 2048, color_cmd_queue, 2, NULL);
 }

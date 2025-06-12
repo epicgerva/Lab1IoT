@@ -1,38 +1,33 @@
 #include "TaskA.h"
-#include "led.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/queue.h"
+#include "freertos/semphr.h"
+#include "freertos/timers.h"
+#include "esp_log.h"
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <led.h>
 
-static SemaphoreHandle_t mutex;
-static volatile bool *led_on_ptr;
-static volatile int *r_ptr, *g_ptr, *b_ptr;
-
-static void TaskA(void *pvParameters)
+void TaskA(void *pvParameters)
 {
     while (1)
     {
-        if (xSemaphoreTake(mutex, portMAX_DELAY))
+        if (xSemaphoreTake(xColorMutex, portMAX_DELAY))
         {
-            if (*led_on_ptr)
+            if (led_on)
             {
                 set_led(0, 0, 0);
-                *led_on_ptr = false;
+                led_on = false;
             }
             else
             {
-                set_led(*r_ptr, *g_ptr, *b_ptr);
-                *led_on_ptr = true;
+                set_led(color.r, color.g, color.b);
+                led_on = true;
             }
-            xSemaphoreGive(mutex);
+            xSemaphoreGive(xColorMutex);
         }
         vTaskDelay(pdMS_TO_TICKS(100));
     }
-}
-
-void start_task_a(SemaphoreHandle_t xColorMutex, volatile bool *led_on, volatile int *r, volatile int *g, volatile int *b)
-{
-    mutex = xColorMutex;
-    led_on_ptr = led_on;
-    r_ptr = r;
-    g_ptr = g;
-    b_ptr = b;
-    xTaskCreate(TaskA, "Task A", 2048, NULL, 1, NULL);
 }

@@ -9,10 +9,10 @@
 
 void app_main(void)
 {
-    SemaphoreHandle_t xColorMutex = xSemaphoreCreateMutex();
-    QueueHandle_t color_cmd_queue = xQueueCreate(10, sizeof(color_cmd_t));
+    xColorMutex = xSemaphoreCreateMutex();
+    color_cmd_queue = xQueueCreate(10, sizeof(color_cmd_t));
 
-    start_task_a(xColorMutex, &led_on, &r, &g, &b);
-    start_task_b(color_cmd_queue);
-    start_task_c(color_cmd_queue, xColorMutex, &r, &g, &b);
+    xTaskCreate(TaskA, "Task A", 2048, NULL, 1, NULL);
+    xTaskCreate(TaskB, "Task B", 2048, NULL, 2, NULL);
+    xTaskCreate(TaskC, "Task C", 2048, NULL, 1, NULL);
 }
