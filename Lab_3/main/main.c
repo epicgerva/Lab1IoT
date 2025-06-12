@@ -3,9 +3,9 @@
 #include "freertos/task.h"
 #include "freertos/semphr.h"
 #include "freertos/queue.h"
-#include "task_a.h"
-#include "task_b.h"
-#include "task_c.h"
+#include "TaskA.h"
+#include "TaskB.h"
+#include "TaskC.h"
 
 void app_main(void)
 {
