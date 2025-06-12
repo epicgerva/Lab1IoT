@@ -1,4 +1,3 @@
-#include "TaskA.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
@@ -9,6 +8,10 @@
 #include <string.h>
 #include <stdlib.h>
 #include <led.h>
+#include "TaskA.h"
+#include "TaskB.h"
+
+bool led_on = false;
 
 void TaskA(void *pvParameters)
 {

@@ -1,7 +1,7 @@
+#include "TaskB.h"
 #include "TaskC.h"
 #include "esp_log.h"
 #include <stdlib.h>
-#include "TaskB.h"
 
 // Callback del temporizador: actualiza el color compartido
 static void timer_callback(TimerHandle_t xTimer)

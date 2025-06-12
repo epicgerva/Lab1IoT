@@ -1,4 +1,3 @@
-#include "TaskB.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
@@ -9,10 +8,14 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <led.h>
+#include "TaskB.h"
 
 #define UART_NUM UART_NUM_0
 #define BUF_SIZE 128
+
+QueueHandle_t color_cmd_queue;
+SemaphoreHandle_t xColorMutex;
+color_t color;
 
 // Parseo de comando UART: "Rojo 10"
 bool parse_uart_command(const char *buf, color_cmd_t *cmd)
@@ -79,24 +82,6 @@ bool parse_uart_command(const char *buf, color_cmd_t *cmd)
     }
 
     return false;
-}
-
-// Callback del temporizador: actualiza el color compartido
-static void timer_callback(TimerHandle_t xTimer)
-{
-    color_cmd_t *cmd = (color_cmd_t *)pvTimerGetTimerID(xTimer);
-    if (cmd != NULL)
-    {
-        if (xSemaphoreTake(xColorMutex, portMAX_DELAY))
-        {
-            color.r = cmd->r;
-            color.g = cmd->g;
-            color.b = cmd->b;
-            xSemaphoreGive(xColorMutex);
-        }
-        vPortFree(cmd);
-    }
-    xTimerDelete(xTimer, 0);
 }
 
 // TASK B: recibe por UART y manda a la queue
