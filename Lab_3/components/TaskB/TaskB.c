@@ -104,15 +104,19 @@ void TaskB(void *pvParameters)
 
     while (1)
     {
-        int len = uart_read_bytes(UART_NUM, data, BUF_SIZE - 1, pdMS_TO_TICKS(500));
+        int len = uart_read_bytes(UART_NUM, data, BUF_SIZE - 1, portMAX_DELAY);
         if (len > 0)
         {
-            ESP_LOGI("TASK B", "%s", data);
-            data[len] = 0;
-            color_cmd_t cmd;
-            if (parse_uart_command((char *)data, &cmd))
+            if (data[len - 1] == '\n' || data[len - 1] == '\r')
             {
-                xQueueSend(color_cmd_queue, &cmd, portMAX_DELAY);
+                ESP_LOGI("TASK B", "%s", data);
+                data[len - 1] = 0;
+                color_cmd_t cmd;
+                if (parse_uart_command((char *)data, &cmd))
+                {
+                    memset(data, 0, BUF_SIZE);
+                    xQueueSend(color_cmd_queue, &cmd, portMAX_DELAY);
+                }
             }
         }
         vTaskDelay(pdMS_TO_TICKS(10)); // Para no saturar la CPU
