@@ -7,11 +7,6 @@
 #define UART_NUM UART_NUM_0
 #define BUF_SIZE 128
 
-typedef struct {
-    int r, g, b;
-    uint32_t delay_s;
-} color_cmd_t;
-
 static bool parse_uart_command(const char *buf, color_cmd_t *cmd)
 {
     char color_name[16];
