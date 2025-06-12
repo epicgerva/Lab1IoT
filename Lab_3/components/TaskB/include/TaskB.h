@@ -5,4 +5,9 @@
 
 void start_task_b(QueueHandle_t color_cmd_queue);
 
+typedef struct {
+    int r, g, b;
+    uint32_t delay_s;
+} color_cmd_t;
+
 #endif
