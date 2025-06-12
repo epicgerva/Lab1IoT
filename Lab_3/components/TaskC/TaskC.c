@@ -1,11 +1,7 @@
 #include "TaskC.h"
 #include "esp_log.h"
 #include <stdlib.h>
-
-typedef struct {
-    int r, g, b;
-    uint32_t delay_s;
-} color_cmd_t;
+#include "TaskB.h"
 
 static SemaphoreHandle_t mutex;
 static QueueHandle_t queue;
