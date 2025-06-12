@@ -106,7 +106,7 @@ void IRAM_ATTR ws2812_rmt_adapter(const void *src, rmt_item32_t *dest, size_t sr
 
 esp_err_t ws2812_set_pixel(led_strip_t *strip, uint32_t index, uint32_t red, uint32_t green, uint32_t blue)
 {
-    ESP_LOGI(TAG, "%s", __func__);
+    // // ESP_LOGI(TAG, "%s", __func__);
 
     esp_err_t ret = ESP_OK;
     ws2812_t *ws2812 = __containerof(strip, ws2812_t, parent);
@@ -125,7 +125,7 @@ err:
 
 esp_err_t ws2812_refresh(led_strip_t *strip, uint32_t timeout_ms)
 {
-    ESP_LOGI(TAG, "%s", __func__);
+    // ESP_LOGI(TAG, "%s", __func__);
     
     esp_err_t ret = ESP_OK;
     ws2812_t *ws2812 = __containerof(strip, ws2812_t, parent);
@@ -139,7 +139,7 @@ err:
 
 esp_err_t ws2812_clear(led_strip_t *strip, uint32_t timeout_ms)
 {
-    ESP_LOGI(TAG, "%s", __func__);
+    // ESP_LOGI(TAG, "%s", __func__);
     
     ws2812_t *ws2812 = __containerof(strip, ws2812_t, parent);
     // Write zero to turn off all leds
@@ -150,7 +150,7 @@ esp_err_t ws2812_clear(led_strip_t *strip, uint32_t timeout_ms)
 
 esp_err_t ws2812_del(led_strip_t *strip)
 {
-    ESP_LOGI(TAG, "%s", __func__);
+    // ESP_LOGI(TAG, "%s", __func__);
     
     ws2812_t *ws2812 = __containerof(strip, ws2812_t, parent);
     free(ws2812);
@@ -159,7 +159,7 @@ esp_err_t ws2812_del(led_strip_t *strip)
 
 led_strip_t *led_strip_new_rmt_ws2812(const led_strip_config_t *config)
 {
-    ESP_LOGI(TAG, "%s", __func__);
+    // ESP_LOGI(TAG, "%s", __func__);
     
     led_strip_t *ret = NULL;
     STRIP_CHECK(config, "configuration can't be null", err, NULL);
@@ -168,7 +168,7 @@ led_strip_t *led_strip_new_rmt_ws2812(const led_strip_config_t *config)
     uint32_t ws2812_size = sizeof(ws2812_t) + config->max_leds * 3;
     ws2812_t *ws2812 = calloc(1, ws2812_size);
     STRIP_CHECK(ws2812, "request memory for ws2812 failed", err, NULL);
-    ESP_LOGI(TAG, "request memory for ws2812 correct");
+    // ESP_LOGI(TAG, "request memory for ws2812 correct");
 
     uint32_t counter_clk_hz = 0;
     STRIP_CHECK(rmt_get_counter_clock((rmt_channel_t)config->dev, &counter_clk_hz) == ESP_OK, "get rmt counter clock failed", err, NULL);
@@ -198,7 +198,7 @@ err:
 
 esp_err_t led_rgb_init(led_strip_t **strip)
 {
-    ESP_LOGI(TAG, "Initializing embedded WS2812");
+    // ESP_LOGI(TAG, "Initializing embedded WS2812");
     rmt_config_t config = RMT_DEFAULT_CONFIG_TX(KALUGA_RGB_LED_PIN, RMT_CHANNEL_0);
 
     /*!< set counter clock to 40MHz */
@@ -215,7 +215,7 @@ esp_err_t led_rgb_init(led_strip_t **strip)
         ESP_LOGE(TAG, "install WS2812 driver failed");
         return ESP_FAIL;
     }
-    ESP_LOGI(TAG, "install WS2812 driver correct");
+    // ESP_LOGI(TAG, "install WS2812 driver correct");
 
     /*!< Clear LED strip (turn off all LEDs) */
     ESP_ERROR_CHECK((*strip)->clear((*strip), 100));

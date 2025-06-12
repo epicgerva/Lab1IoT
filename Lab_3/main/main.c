@@ -7,9 +7,6 @@
 #include "task_b.h"
 #include "task_c.h"
 
-volatile int r = 0, g = 0, b = 0;
-volatile bool led_on = false;
-
 void app_main(void)
 {
     SemaphoreHandle_t xColorMutex = xSemaphoreCreateMutex();
