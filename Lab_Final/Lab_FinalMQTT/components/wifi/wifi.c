@@ -14,8 +14,10 @@
 #define AP_WIFI_CHANNEL 1
 #define AP_MAX_CONNECTIONS 4
 
-#define EXAMPLE_ESP_WIFI_STA_SSID "A"
-#define EXAMPLE_ESP_WIFI_STA_PASS "Teroboelinternet1"
+#define EXAMPLE_ESP_WIFI_STA_SSID "caliope" //caliope Ito_Casa_2.4GHz
+#define EXAMPLE_ESP_WIFI_STA_PASS "sinlugar" //sinlugar aber02@WF
+
+static SemaphoreHandle_t wifi_connected_sem = NULL;
 
 static const char *TAG = "WIFI";
 
@@ -57,6 +59,14 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
     {
         ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
         ESP_LOGI(TAG, "STA: Got IP address:" IPSTR, IP2STR(&event->ip_info.ip));
+    }
+     else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
+    {
+        ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
+        ESP_LOGI(TAG, "STA: Got IP address:" IPSTR, IP2STR(&event->ip_info.ip));
+        if (wifi_connected_sem) {
+            xSemaphoreGive(wifi_connected_sem);
+        }
     }
 }
 
@@ -107,6 +117,8 @@ void init_ap(void)
 
 void init_sta(void)
 {
+    wifi_connected_sem = xSemaphoreCreateBinary();
+
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
     {
@@ -159,4 +171,13 @@ void init_sta(void)
 
     ESP_LOGI(TAG, "wifi_init_sta finished. Attempting to connect to SSID:%s",
              EXAMPLE_ESP_WIFI_STA_SSID);
+
+    if (xSemaphoreTake(wifi_connected_sem, pdMS_TO_TICKS(10000)) == pdTRUE) {
+        ESP_LOGI(TAG, "WiFi STA: Conectado y con IP.");
+    } else {
+        ESP_LOGE(TAG, "WiFi STA: Timeout esperando conexión.");
+    }
+
+    vSemaphoreDelete(wifi_connected_sem);
+    wifi_connected_sem = NULL;
 }
