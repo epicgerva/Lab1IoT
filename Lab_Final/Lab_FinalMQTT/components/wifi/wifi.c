@@ -14,8 +14,8 @@
 #define AP_WIFI_CHANNEL 1
 #define AP_MAX_CONNECTIONS 4
 
-#define EXAMPLE_ESP_WIFI_STA_SSID "Ito_Casa_2.4GHz" //caliope
-#define EXAMPLE_ESP_WIFI_STA_PASS "aber02@WF" //sinlugar
+#define EXAMPLE_ESP_WIFI_STA_SSID "caliope" //caliope Ito_Casa_2.4GHz
+#define EXAMPLE_ESP_WIFI_STA_PASS "sinlugar" //sinlugar aber02@WF
 
 static SemaphoreHandle_t wifi_connected_sem = NULL;
 
