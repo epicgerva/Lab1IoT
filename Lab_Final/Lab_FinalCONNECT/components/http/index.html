@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Reproductor</title>
+    <link rel="stylesheet" type="text/css" href="/style.css" />
+  </head>
+  <body>
+    <h1>Reproductor</h1>
+    <h2 id="currentTime"></h2>
+    <div class="container">
+      <form action="/sta" method="POST">
+        <label for="data">Conectar a red WiFi:</label>
+        <input type="text" id="ssid" name="ssid" required placeholder="SSID" />
+        <input
+          type="text"
+          id="password"
+          name="password"
+          required
+          placeholder="Contraseña"
+        />
+        <input type="submit" value="Conectar" class="submit-button" />
+      </form>
+      <form action="/ap" method="POST">
+        <label for="data">Crear un access point:</label>
+        <input type="text" id="ssid" name="ssid" required placeholder="SSID" />
+        <input
+          type="text"
+          id="password"
+          name="password"
+          required
+          placeholder="Contraseña"
+        />
+        <input type="submit" value="Activar AP" class="submit-button" />
+      </form>
+    </div>
+    <script src="/script.js"></script>
+  </body>
+</html>
