@@ -38,37 +38,68 @@ static void audio_task(void *args) {
                         data_ptr += bytes_written;
                         i2s_channel_enable(tx_handle);
                         is_playing = true;
+                        ESP_LOGI(TAG, "[audio_task] Playback started");
                     }
                     break;
 
                 case CMD_PAUSE:
                     i2s_channel_disable(tx_handle);
                     is_playing = false;
+                    ESP_LOGI(TAG, "[audio_task] Playback paused");
                     break;
 
                 case CMD_STOP:
                     i2s_channel_disable(tx_handle);
                     data_ptr = (uint8_t *)music_pcm_start;
                     is_playing = false;
+                    ESP_LOGI(TAG, "[audio_task] Playback stopped");
                     break;
 
                 case CMD_NEXT:
                 case CMD_PREV:
-                    // Por ahora reiniciamos; lógica de playlist se puede agregar después
+                    
                     data_ptr = (uint8_t *)music_pcm_start;
+                    ESP_LOGI(TAG, "[audio_task] Track restarted");
                     break;
 
                 case CMD_VOL_UP:
                     if (volume < 100) volume += 5;
-                    es8311_voice_volume_set(NULL, volume, NULL);
+                    es8311_voice_volume_set(es_handle, volume, NULL);
+                    ESP_LOGI(TAG, "[audio_task] Volume up: %d", volume);
                     break;
 
                 case CMD_VOL_DOWN:
                     if (volume >= 5) volume -= 5;
-                    es8311_voice_volume_set(NULL, volume, NULL);
+                    es8311_voice_volume_set(es_handle, volume, NULL);
+                    ESP_LOGI(TAG, "[audio_task] Volume down: %d", volume);
+                    break;
+
+                default:
                     break;
             }
         }
+
+        // Loop de reproducción si está activo
+        if (is_playing) {
+            if (data_ptr >= music_pcm_end) {
+                data_ptr = (uint8_t *)music_pcm_start;  // loop
+            }
+
+            esp_err_t ret = i2s_channel_write(tx_handle, data_ptr, music_len, &bytes_written, portMAX_DELAY);
+            if (ret == ESP_OK) {
+                data_ptr += bytes_written;
+            } else {
+                ESP_LOGE(TAG, "[audio_task] i2s write error");
+                is_playing = false;
+            }
+        } else {
+            vTaskDelay(pdMS_TO_TICKS(100));  // Espera pasiva
+        }
+    }
+
+    vTaskDelete(NULL);
+}
+
 
         // Si está reproduciendo, seguir escribiendo audio
         if (is_playing) {

@@ -70,7 +70,6 @@ static esp_err_t es8311_codec_init(void)
 #if CONFIG_EXAMPLE_MODE_ECHO
     ESP_RETURN_ON_ERROR(es8311_microphone_gain_set(es_handle, EXAMPLE_MIC_GAIN), TAG, "set es8311 microphone gain failed");
 #endif
-
     return ESP_OK;
 }
 
