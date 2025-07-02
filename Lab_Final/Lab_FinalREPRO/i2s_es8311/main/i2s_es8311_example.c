@@ -22,6 +22,8 @@ static const char err_reason[][30] = {"input param is invalid",
                                      };
 static i2s_chan_handle_t tx_handle = NULL;
 static i2s_chan_handle_t rx_handle = NULL;
+static es8311_handle_t es_handle = NULL;
+
 
 /* Import music file as buffer */
 #if CONFIG_EXAMPLE_MODE_MUSIC
@@ -48,8 +50,9 @@ static esp_err_t es8311_codec_init(void)
 #endif
 
     /* Initialize es8311 codec */
-    es8311_handle_t es_handle = es8311_create(I2C_NUM, ES8311_ADDRRES_0);
+    es_handle = es8311_create(I2C_NUM, ES8311_ADDRRES_0);  // ← usamos la variable global
     ESP_RETURN_ON_FALSE(es_handle, ESP_FAIL, TAG, "es8311 create failed");
+
     const es8311_clock_config_t es_clk = {
         .mclk_inverted = false,
         .sclk_inverted = false,
@@ -60,13 +63,17 @@ static esp_err_t es8311_codec_init(void)
 
     ESP_ERROR_CHECK(es8311_init(es_handle, &es_clk, ES8311_RESOLUTION_16, ES8311_RESOLUTION_16));
     ESP_RETURN_ON_ERROR(es8311_sample_frequency_config(es_handle, EXAMPLE_SAMPLE_RATE * EXAMPLE_MCLK_MULTIPLE, EXAMPLE_SAMPLE_RATE), TAG, "set es8311 sample frequency failed");
+
     ESP_RETURN_ON_ERROR(es8311_voice_volume_set(es_handle, EXAMPLE_VOICE_VOLUME, NULL), TAG, "set es8311 volume failed");
     ESP_RETURN_ON_ERROR(es8311_microphone_config(es_handle, false), TAG, "set es8311 microphone failed");
+
 #if CONFIG_EXAMPLE_MODE_ECHO
     ESP_RETURN_ON_ERROR(es8311_microphone_gain_set(es_handle, EXAMPLE_MIC_GAIN), TAG, "set es8311 microphone gain failed");
 #endif
+
     return ESP_OK;
 }
+
 
 static esp_err_t i2s_driver_init(void)
 {
@@ -212,7 +219,10 @@ void app_main(void)
 
 #if CONFIG_EXAMPLE_MODE_MUSIC
     /* Play a piece of music in music mode */
-    xTaskCreate(i2s_music, "i2s_music", 4096, NULL, 5, NULL);
+  //  xTaskCreate(i2s_music, "i2s_music", 4096, NULL, 5, NULL);
+  player_cmd_queue = xQueueCreate(10, sizeof(player_cmd_t));
+  xTaskCreate(audio_task, "audio_task", 8192, NULL, 5, NULL);
+
 #else
     /* Echo the sound from MIC in echo mode */
     xTaskCreate(i2s_echo, "i2s_echo", 8192, NULL, 5, NULL);
