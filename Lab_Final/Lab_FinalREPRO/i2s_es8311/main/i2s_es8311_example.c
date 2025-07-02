@@ -227,3 +227,4 @@ void app_main(void)
     xTaskCreate(i2s_echo, "i2s_echo", 8192, NULL, 5, NULL);
 #endif
 }
+

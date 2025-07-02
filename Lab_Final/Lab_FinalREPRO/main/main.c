@@ -6,6 +6,8 @@
 #include "TaskA.h"
 #include "TaskB.h"
 #include "TaskC.h"
+#include "i2s_es8311.h"
+
 
 typedef enum {
     CMD_PLAY,
@@ -114,12 +116,54 @@ static void audio_task(void *args) {
     }
 }
 
+static void heartbeat_task(void *args)
+{
+    while (1) {
+        if (is_playing) {
+            // Parpadeo en verde si está reproduciendo
+            set_led(0, 50, 0);  // verde
+            vTaskDelay(pdMS_TO_TICKS(200));
+            set_led(0, 0, 0);   // apagado
+            vTaskDelay(pdMS_TO_TICKS(800));
+        } else {
+            // LED azul tenue constante si está pausado o detenido
+            set_led(0, 0, 10);
+            vTaskDelay(pdMS_TO_TICKS(1000));
+        }
+    }
+}
+
+
 void app_main(void)
 {
-    xColorMutex = xSemaphoreCreateMutex();
-    color_cmd_queue = xQueueCreate(10, sizeof(color_cmd_t));
+    // Crear cola para comandos del reproductor
+    player_cmd_queue = xQueueCreate(10, sizeof(player_cmd_t));
+    if (player_cmd_queue == NULL) {
+        ESP_LOGE(TAG, "Error creando cola de comandos");
+        abort();
+    }
 
-    xTaskCreate(TaskA, "Task A", 2048, NULL, 1, NULL);
-    xTaskCreate(TaskB, "Task B", 2048, NULL, 2, NULL);
-    xTaskCreate(TaskC, "Task C", 2048, NULL, 1, NULL);
+    // Inicializar driver I2S
+    if (i2s_driver_init() != ESP_OK) {
+        ESP_LOGE(TAG, "i2s driver init failed");
+        abort();
+    }
+
+    // Inicializar codec ES8311
+    if (es8311_codec_init() != ESP_OK) {
+        ESP_LOGE(TAG, "es8311 codec init failed");
+        abort();
+    }
+
+    // Inicializar volumen y estado
+    volume = EXAMPLE_VOICE_VOLUME;
+    is_playing = false;
+
+    // Crear tarea de audio (reproducción)
+    xTaskCreate(audio_task, "audio_task", 8192, NULL, 5, NULL);
+
+    // Crear tarea heartbeat (LED)
+    xTaskCreate(heartbeat_task, "heartbeat_task", 2048, NULL, 2, NULL);
+    ESP_LOGI(TAG, "Sistema inicializado correctamente");
+
 }
