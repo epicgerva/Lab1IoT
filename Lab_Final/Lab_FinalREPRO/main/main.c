@@ -40,28 +40,35 @@ static void touchpad_task(void *args)
         touch_update();
 
         if (touch_pressed(TOUCH_VOLUME_UP)) {
+            ESP_LOGI(TAG, "Touch: VOLUME UP");
             player_send_cmd(CMD_VOL_UP);
         }
         if (touch_pressed(TOUCH_VOLUME_DOWN)) {
+            ESP_LOGI(TAG, "Touch: VOLUME DOWN");
             player_send_cmd(CMD_VOL_DOWN);
         }
         if (touch_pressed(TOUCH_PLAY_PAUSE)) {
             static bool last_play = false;
             if (!last_play) {
+                ESP_LOGI(TAG, "Touch: PLAY");
                 player_send_cmd(CMD_PLAY);
                 last_play = true;
             } else {
+                ESP_LOGI(TAG, "Touch: PAUSE");
                 player_send_cmd(CMD_PAUSE);
                 last_play = false;
             }
         }
         if (touch_pressed(TOUCH_PHOTO)) { // Asume que TOUCH_PHOTO es PREV
+            ESP_LOGI(TAG, "Touch: PREV");
             player_send_cmd(CMD_PREV);
         }
         if (touch_pressed(TOUCH_RECORD)) { // Asume que TOUCH_RECORD es NEXT
+            ESP_LOGI(TAG, "Touch: NEXT");
             player_send_cmd(CMD_NEXT);
         }
         if (touch_pressed(TOUCH_NETWORK)) { // STOP
+            ESP_LOGI(TAG, "Touch: STOP");
             player_send_cmd(CMD_STOP);
         }
 
@@ -80,17 +87,7 @@ void app_main(void)
     ESP_ERROR_CHECK(logger_init());
     ESP_ERROR_CHECK(player_init(&player_cmd_queue));
     
-    // Inicializar driver I2S
-    if (i2s_driver_init() != ESP_OK) {
-        ESP_LOGE(TAG, "i2s driver init failed");
-        abort();
-    }
-
-    // Inicializar codec ES8311
-    if (es8311_codec_init() != ESP_OK) {
-        ESP_LOGE(TAG, "es8311 codec init failed");
-        abort();
-    }
+    
 
     // Inicializar playlist (monta SPIFFS y carga lista)
     if (playlist_init() != ESP_OK) {

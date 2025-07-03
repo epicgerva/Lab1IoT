@@ -1,13 +1,15 @@
 #include "player.h"
 #include "playlist.h"
 #include "es8311.h"
+#include "logger.h"              // <-- Agrega este include
 #include "driver/i2s_std.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
-#include "logger.h"
+#include "esp_check.h"           // <-- Agrega este include para los macros ESP_RETURN_ON_*
 #include "example_config.h"
+
 static const char *TAG = "PLAYER";
 static QueueHandle_t player_cmd_queue = NULL;
 static SemaphoreHandle_t player_mutex = NULL;
@@ -201,8 +203,11 @@ static void audio_task(void *args) {
 }
 
 esp_err_t player_init(QueueHandle_t *cmd_queue_out) {
-    ESP_ERROR_CHECK(i2s_driver_init());
-    ESP_ERROR_CHECK(es8311_codec_init());
+    // Bypass audio hardware for testing
+    // ESP_ERROR_CHECK(i2s_driver_init());
+    // ESP_ERROR_CHECK(es8311_codec_init());
+    ESP_LOGW(TAG, "Bypassing audio hardware init for testing!");
+
     ESP_ERROR_CHECK(playlist_init());
     player_mutex = xSemaphoreCreateMutex();
     player_cmd_queue = xQueueCreate(10, sizeof(player_cmd_t));

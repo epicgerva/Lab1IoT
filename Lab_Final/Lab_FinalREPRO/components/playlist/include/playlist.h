@@ -19,6 +19,7 @@ esp_err_t playlist_init(void);
 int playlist_get_count(void);
 const char* playlist_get_current_song(void);
 int playlist_get_current_index(void);
+esp_err_t playlist_get_current(uint8_t **start, uint8_t **end);
 
 esp_err_t playlist_next(void);
 esp_err_t playlist_prev(void);
