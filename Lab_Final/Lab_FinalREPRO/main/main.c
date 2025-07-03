@@ -166,12 +166,15 @@ void app_main(void)
     xTaskCreate(heartbeat_task, "heartbeat_task", 2048, NULL, 2, NULL);
 
     // Crear tarea touchpad
-    xTaskCreate(touchpad_task, "touchpad_task", 2048, NULL, 3, NULL);
 
     ESP_LOGI(TAG, "Sistema inicializado correctamente");
 
     test_logger();
 
     delay_s(2);
-    touch_init();
+    player_send_cmd(CMD_PLAY);
+
+    // delay_s(2);
+    // touch_init();
+    // xTaskCreate(touchpad_task, "touchpad_task", 2048, NULL, 3, NULL);
 }
