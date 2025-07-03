@@ -13,6 +13,6 @@ dependencies:
 direct_dependencies:
 - hfudev/json
 - idf
-manifest_hash: 9383f958186f058423054335ff9fd7e0d649d771faa044e7ecb4c568eab55b07
+manifest_hash: acca490971c5c1c3a36384678fccb46dda6c66d317b3a17a098516cf1b5b9feb
 target: esp32s2
 version: 2.0.0
