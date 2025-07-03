@@ -1,13 +1,13 @@
 #include "player.h"
 #include "playlist.h"
 #include "es8311.h"
-#include "logger.h" // <-- Agrega este include
+#include "logger.h" 
 #include "driver/i2s_std.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
-#include "esp_check.h" // <-- Agrega este include para los macros ESP_RETURN_ON_*
+#include "esp_check.h" 
 #include "example_config.h"
 
 static const char *TAG = "PLAYER";
@@ -21,7 +21,7 @@ static i2s_chan_handle_t tx_handle = NULL;
 static i2s_chan_handle_t rx_handle = NULL;
 static es8311_handle_t es_handle = NULL;
 
-// ...define pines y parámetros aquí...
+
 
 static esp_err_t es8311_codec_init(void)
 {
@@ -208,31 +208,6 @@ static void audio_task(void *args)
         }
         if (is_playing && data_ptr && song_end)
         {
-            if (data_ptr >= song_end)
-            {
-                // Avanza a la siguiente canción automáticamente
-                if (playlist_next() == ESP_OK && playlist_get_current(&song_start, &song_end) == ESP_OK)
-                {
-                    data_ptr = song_start;
-                    music_len = song_end - song_start;
-                    ESP_LOGI(TAG, "[audio_task] Reproduciendo siguiente canción automáticamente: %s", playlist_get_current_song());
-                }
-                else
-                {
-                    if (playlist_loop) {
-                        // Vuelve a la primera canción
-                        playlist_set_index(0);
-                        playlist_get_current(&song_start, &song_end);
-                        data_ptr = song_start;
-                        music_len = song_end - song_start;
-                        ESP_LOGI(TAG, "[audio_task] Loop: volviendo al primer tema: %s", playlist_get_current_song());
-                    } else {
-                        ESP_LOGW(TAG, "[audio_task] No hay más canciones, deteniendo reproducción");
-                        is_playing = false;
-                        continue;
-                    }
-                }
-            }
             esp_err_t ret = i2s_channel_write(tx_handle, data_ptr, music_len, &bytes_written, portMAX_DELAY);
             if (ret == ESP_OK)
             {
@@ -246,6 +221,58 @@ static void audio_task(void *args)
         }
         else
         {
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+    }
+}
+
+static void player_loop_task(void *args)
+{
+    uint8_t *data_ptr = NULL;
+    uint8_t *song_start = NULL;
+    uint8_t *song_end = NULL;
+    size_t music_len = 0;
+
+    // Cargar la canción actual al iniciar
+    if (playlist_get_current(&song_start, &song_end) == ESP_OK) {
+        data_ptr = song_start;
+        music_len = song_end - song_start;
+    } else {
+        ESP_LOGE(TAG, "No se pudo cargar la canción inicial");
+    }
+
+    while (1) {
+        if (is_playing && data_ptr && song_end) {
+            if (data_ptr >= song_end) {
+                // Avanza a la siguiente canción automáticamente
+                if (playlist_next() == ESP_OK && playlist_get_current(&song_start, &song_end) == ESP_OK) {
+                    data_ptr = song_start;
+                    music_len = song_end - song_start;
+                    ESP_LOGI(TAG, "[player_loop_task] Reproduciendo siguiente canción automáticamente: %s", playlist_get_current_song());
+                } else {
+                    if (playlist_loop) {
+                        // Vuelve a la primera canción
+                        playlist_set_index(0);
+                        playlist_get_current(&song_start, &song_end);
+                        data_ptr = song_start;
+                        music_len = song_end - song_start;
+                        ESP_LOGI(TAG, "[player_loop_task] Loop: volviendo al primer tema: %s", playlist_get_current_song());
+                    } else {
+                        ESP_LOGW(TAG, "[player_loop_task] No hay más canciones, deteniendo reproducción");
+                        is_playing = false;
+                        vTaskDelay(pdMS_TO_TICKS(100));
+                        continue;
+                    }
+                }
+            }
+
+            // Aquí deberías poner la llamada a i2s_channel_write o tu simulación de reproducción
+            // Ejemplo (simulación):
+            ESP_LOGI(TAG, "[player_loop_task] Simulando reproducción de %d bytes", (int)music_len);
+            data_ptr = song_end; // Simula que se terminó la canción
+
+            vTaskDelay(pdMS_TO_TICKS(1000)); // Simula tiempo de reproducción
+        } else {
             vTaskDelay(pdMS_TO_TICKS(100));
         }
     }
@@ -287,6 +314,7 @@ esp_err_t player_init(QueueHandle_t *cmd_queue_out)
     player_mutex = xSemaphoreCreateMutex();
     player_cmd_queue = xQueueCreate(10, sizeof(player_cmd_t));
     xTaskCreate(audio_task, "audio_task", 8192, NULL, 5, NULL);
+    xTaskCreate(player_loop_task, "player_loop_task", 8192, NULL, 5, NULL);
     if (cmd_queue_out)
         *cmd_queue_out = player_cmd_queue;
     return ESP_OK;
