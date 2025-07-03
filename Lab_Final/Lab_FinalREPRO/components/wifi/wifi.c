@@ -5,17 +5,18 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
-
+#include "nvs.h"
+#include "wifi.h"
 #include "lwip/err.h"
 #include "lwip/sys.h"
 
-#define AP_WIFI_SSID "CALIOPE 2.0"
-#define AP_WIFI_PASS "1234567890"
+#define NVS_NAMESPACE "wifi_config"
+#define NVS_MODE_KEY "mode"
+#define NVS_SSID_KEY "ssid"
+#define NVS_PASSWORD_KEY "password"
+
 #define AP_WIFI_CHANNEL 1
 #define AP_MAX_CONNECTIONS 4
-
-#define EXAMPLE_ESP_WIFI_STA_SSID "A"
-#define EXAMPLE_ESP_WIFI_STA_PASS "Teroboelinternet1"
 
 static const char *TAG = "WIFI";
 
@@ -43,7 +44,8 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
         }
         else if (event_id == WIFI_EVENT_STA_CONNECTED)
         {
-            ESP_LOGI(TAG, "STA: WIFI_EVENT_STA_CONNECTED to %s", EXAMPLE_ESP_WIFI_STA_SSID);
+            wifi_event_sta_connected_t *event = (wifi_event_sta_connected_t *)event_data;
+            ESP_LOGI(TAG, "STA: WIFI_EVENT_STA_CONNECTED to %s", (char*)event->ssid);
         }
         else if (event_id == WIFI_EVENT_STA_DISCONNECTED)
         {
@@ -60,16 +62,8 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
     }
 }
 
-void init_ap(void)
+void init_ap(const char* ssid, const char* password)
 {
-    esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
-    {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ret = nvs_flash_init();
-    }
-    ESP_ERROR_CHECK(ret);
-
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     esp_netif_create_default_wifi_ap();
@@ -85,14 +79,16 @@ void init_ap(void)
 
     wifi_config_t wifi_config = {
         .ap = {
-            .ssid = AP_WIFI_SSID,
-            .ssid_len = strlen(AP_WIFI_SSID),
+            .ssid_len = strlen(ssid),
             .channel = AP_WIFI_CHANNEL,
-            .password = AP_WIFI_PASS,
             .max_connection = AP_MAX_CONNECTIONS,
             .authmode = WIFI_AUTH_WPA_WPA2_PSK},
     };
-    if (strlen(AP_WIFI_PASS) == 0)
+    
+    strncpy((char *)wifi_config.ap.ssid, ssid, sizeof(wifi_config.ap.ssid) - 1);
+    strncpy((char *)wifi_config.ap.password, password, sizeof(wifi_config.ap.password) - 1);
+    
+    if (strlen(password) == 0)
     {
         wifi_config.ap.authmode = WIFI_AUTH_OPEN;
     }
@@ -102,19 +98,11 @@ void init_ap(void)
     ESP_ERROR_CHECK(esp_wifi_start());
 
     ESP_LOGI(TAG, "wifi_init_softap finished. SSID:%s password:%s channel:%d",
-             AP_WIFI_SSID, AP_WIFI_PASS, AP_WIFI_CHANNEL);
+             ssid, password, AP_WIFI_CHANNEL);
 }
 
-void init_sta(void)
+void init_sta(const char* ssid, const char* password)
 {
-    esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
-    {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ret = nvs_flash_init();
-    }
-    ESP_ERROR_CHECK(ret);
-
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     esp_netif_t *p_netif_sta = esp_netif_create_default_wifi_sta();
@@ -140,17 +128,17 @@ void init_sta(void)
             .threshold.authmode = WIFI_AUTH_WPA2_PSK},
     };
    
-    strncpy((char *)wifi_config.sta.ssid, EXAMPLE_ESP_WIFI_STA_SSID, sizeof(wifi_config.sta.ssid) - 1);
-    strncpy((char *)wifi_config.sta.password, EXAMPLE_ESP_WIFI_STA_PASS, sizeof(wifi_config.sta.password) - 1);
+    strncpy((char *)wifi_config.sta.ssid, ssid, sizeof(wifi_config.sta.ssid) - 1);
+    strncpy((char *)wifi_config.sta.password, password, sizeof(wifi_config.sta.password) - 1);
     
-    if (strlen(EXAMPLE_ESP_WIFI_STA_PASS) == 0)
+    if (strlen(password) == 0)
     {
         wifi_config.sta.threshold.authmode = WIFI_AUTH_OPEN;
-        ESP_LOGI(TAG, "STA: Connecting to an OPEN network: %s", EXAMPLE_ESP_WIFI_STA_SSID);
+        ESP_LOGI(TAG, "STA: Connecting to an OPEN network: %s", ssid);
     }
     else
     {
-        ESP_LOGI(TAG, "STA: Attempting to connect to WPA2_PSK network: %s", EXAMPLE_ESP_WIFI_STA_SSID);
+        ESP_LOGI(TAG, "STA: Attempting to connect to WPA2_PSK network: %s", ssid);
     }
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
@@ -158,5 +146,151 @@ void init_sta(void)
     ESP_ERROR_CHECK(esp_wifi_start()); 
 
     ESP_LOGI(TAG, "wifi_init_sta finished. Attempting to connect to SSID:%s",
-             EXAMPLE_ESP_WIFI_STA_SSID);
+             ssid);
+}
+
+esp_err_t wifi_save_config(wifi_mode_flash_t mode, const char* ssid, const char* password)
+{
+    nvs_handle_t nvs_handle;
+    esp_err_t err;
+
+    ESP_LOGI(TAG, "Saving WiFi config to flash: mode=%d, ssid=%s", mode, ssid);
+
+    err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &nvs_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Error opening NVS handle: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    // Save mode
+    err = nvs_set_u8(nvs_handle, NVS_MODE_KEY, (uint8_t)mode);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Error saving mode: %s", esp_err_to_name(err));
+        nvs_close(nvs_handle);
+        return err;
+    }
+
+    // Save SSID
+    err = nvs_set_str(nvs_handle, NVS_SSID_KEY, ssid);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Error saving SSID: %s", esp_err_to_name(err));
+        nvs_close(nvs_handle);
+        return err;
+    }
+
+    // Save password
+    err = nvs_set_str(nvs_handle, NVS_PASSWORD_KEY, password);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Error saving password: %s", esp_err_to_name(err));
+        nvs_close(nvs_handle);
+        return err;
+    }
+
+    // Commit changes
+    err = nvs_commit(nvs_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Error committing to NVS: %s", esp_err_to_name(err));
+    } else {
+        ESP_LOGI(TAG, "WiFi config saved successfully");
+    }
+
+    nvs_close(nvs_handle);
+    return err;
+}
+
+esp_err_t wifi_load_config(wifi_mode_flash_t* mode, char* ssid, char* password)
+{
+    nvs_handle_t nvs_handle;
+    esp_err_t err;
+    size_t required_size;
+
+    err = nvs_open(NVS_NAMESPACE, NVS_READONLY, &nvs_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Error opening NVS handle: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    // Load mode
+    uint8_t mode_val;
+    err = nvs_get_u8(nvs_handle, NVS_MODE_KEY, &mode_val);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Error loading mode: %s", esp_err_to_name(err));
+        nvs_close(nvs_handle);
+        return err;
+    }
+    *mode = (wifi_mode_flash_t)mode_val;
+
+    // Load SSID
+    required_size = 32; // Max SSID length
+    err = nvs_get_str(nvs_handle, NVS_SSID_KEY, ssid, &required_size);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Error loading SSID: %s", esp_err_to_name(err));
+        nvs_close(nvs_handle);
+        return err;
+    }
+
+    // Load password
+    required_size = 64; // Max password length
+    err = nvs_get_str(nvs_handle, NVS_PASSWORD_KEY, password, &required_size);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Error loading password: %s", esp_err_to_name(err));
+        nvs_close(nvs_handle);
+        return err;
+    }
+
+    ESP_LOGI(TAG, "WiFi config loaded: mode=%d, ssid=%s", *mode, ssid);
+    nvs_close(nvs_handle);
+    return ESP_OK;
+}
+
+esp_err_t wifi_clear_config(void)
+{
+    nvs_handle_t nvs_handle;
+    esp_err_t err;
+
+    ESP_LOGI(TAG, "Clearing WiFi config from flash");
+
+    err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &nvs_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Error opening NVS handle: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    err = nvs_erase_all(nvs_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Error erasing NVS namespace: %s", esp_err_to_name(err));
+    } else {
+        ESP_LOGI(TAG, "WiFi config cleared successfully");
+        err = nvs_commit(nvs_handle);
+    }
+
+    nvs_close(nvs_handle);
+    return err;
+}
+
+esp_err_t wifi_init_from_flash(void)
+{
+    wifi_mode_flash_t mode;
+    char ssid[32] = {0};
+    char password[64] = {0};
+    esp_err_t err;
+
+    ESP_LOGI(TAG, "Attempting to initialize WiFi from flash configuration");
+
+    err = wifi_load_config(&mode, ssid, password);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "No WiFi config found in flash or error loading: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    if (mode == WIFI_MODE_AP_FLASH) {
+        init_ap(ssid, password);
+    } else if (mode == WIFI_MODE_STA_FLASH) {
+        init_sta(ssid, password);
+    } else {
+        ESP_LOGE(TAG, "Invalid WiFi mode in flash: %d", mode);
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    return ESP_OK;
 }

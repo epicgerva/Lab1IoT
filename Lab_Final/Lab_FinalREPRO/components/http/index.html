@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Reproductor</title>
+    <link rel="stylesheet" type="text/css" href="style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Exo+2:wght@300;700;900&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="title-wrapper">
+      <h1 class="sweet-title">
+        <span data-text="Reproductor">Reproductor</span>
+      </h1>
+    </div>
+    <!-- <h2 id="currentTime"></h2> -->
+    <div class="controls">
+      <button id="playButton" class="control-button" style="padding-left: 12px">
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="14">
+          <g fill="none" fill-rule="evenodd">
+            <path d="M-8-5h24v24H-8z" />
+            <path fill="#D0D0D0" d="M2 3.64v6.72L7.27 7z" />
+            <path
+              fill="#1D1D1D"
+              d="m0 14 11-7L0 0v14ZM2 3.64 7.27 7 2 10.36V3.64Z"
+            />
+          </g>
+        </svg>
+      </button>
+      <button id="pauseButton" class="control-button">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="14">
+          <g fill="none" fill-rule="evenodd">
+            <path d="M-6-5h24v24H-6z" />
+            <path fill="#1D1D1D" d="M0 0h4v14H0V0Zm8 0h4v14H8V0Z" />
+          </g>
+        </svg>
+      </button>
+      <button id="stopButton" class="control-button">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12">
+          <g fill="none" fill-rule="evenodd">
+            <path d="M-6-6h24v24H-6z" />
+            <path fill="#D0D0D0" d="M2 2h8v8H2z" />
+            <path fill="#1D1D1D" d="M0 12h12V0H0v12ZM2 2h8v8H2V2Z" />
+          </g>
+        </svg>
+      </button>
+      <button id="previousButton" class="control-button">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12">
+          <g fill="none" fill-rule="evenodd">
+            <path d="M-6-6h24v24H-6z" />
+            <path fill="#D0D0D0" d="M10 8.14V3.86L6.97 6z" />
+            <path
+              fill="#1D1D1D"
+              d="M0 0h2v12H0V0Zm12 12V0L3.5 6l8.5 6Zm-2-3.86L6.97 6 10 3.86v4.28Z"
+            />
+          </g>
+        </svg>
+      </button>
+      <button id="nextButton" class="control-button">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12">
+          <g fill="none" fill-rule="evenodd">
+            <path d="M-6-6h24v24H-6z" />
+            <path fill="#D0D0D0" d="M2 3.86v4.28L5.03 6z" />
+            <path
+              fill="#1D1D1D"
+              d="M8.5 6 0 0v12l8.5-6ZM2 3.86 5.03 6 2 8.14V3.86ZM10 0h2v12h-2V0Z"
+            />
+          </g>
+        </svg>
+      </button>
+      <button id="volumeDownButton" class="control-button">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="16">
+          <g fill="none" fill-rule="evenodd">
+            <path d="M-5-4h24v24H-5z" />
+            <path fill="#D0D0D0" d="M2 9h2.83L7 11.17V4.83L4.83 7H2z" />
+            <path
+              fill="#1D1D1D"
+              d="M11 3.97v8.05c1.48-.73 2.5-2.25 2.5-4.02A4.5 4.5 0 0 0 11 3.97ZM0 5v6h4l5 5V0L4 5H0Zm7-.17v6.34L4.83 9H2V7h2.83L7 4.83Z"
+            />
+          </g>
+        </svg>
+      </button>
+      <button id="volumeUpButton" class="control-button">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18">
+          <g fill="none" fill-rule="evenodd">
+            <path d="M-3-3h24v24H-3z" />
+            <path fill="#D0D0D0" d="M2 10h2.83L7 12.17V5.83L4.83 8H2z" />
+            <path
+              fill="#1D1D1D"
+              d="M0 6v6h4l5 5V1L4 6H0Zm7-.17v6.34L4.83 10H2V8h2.83L7 5.83Zm4-.86v8.05c1.48-.73 2.5-2.25 2.5-4.02A4.5 4.5 0 0 0 11 4.97Zm0-4.74v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77 0-4.28-2.99-7.86-7-8.77Z"
+            />
+          </g>
+        </svg>
+      </button>
+    </div>
+    <div class="container">
+      <form action="/sta" method="POST">
+        <label for="data">Conectar a red WiFi:</label>
+        <div class="form-pill">
+          <input
+            type="text"
+            id="ssid"
+            name="ssid"
+            required
+            placeholder="SSID"
+            maxlength="32"
+          />
+          <input
+            type="text"
+            id="password"
+            name="password"
+            required
+            placeholder="Contrase&ntilde;a"
+            maxlength="32"
+          />
+          <input type="submit" value="Conectar" class="submit-button" />
+        </div>
+      </form>
+      <hr />
+      <form action="/ap" method="POST">
+        <label for="data">Crear un access point:</label>
+        <div class="form-pill">
+          <input
+            type="text"
+            id="ssid2"
+            name="ssid"
+            required
+            placeholder="SSID"
+            maxlength="32"
+          />
+          <input
+            type="text"
+            id="password2"
+            name="password"
+            required
+            placeholder="Contrase&ntilde;a"
+            maxlength="32"
+          />
+          <input type="submit" value="Activar AP" class="submit-button" />
+        </div>
+      </form>
+    </div>
+    <script src="script.js"></script>
+    <svg class="filter" xmlns="http://www.w3.org/2000/svg">
+      <filter id="noise">
+        <feTurbulence baseFrequency="0.185" />
+        <feColorMatrix
+          values="0 0 0 9 -5
+                               0 0 0 9 -4
+                              0 0 0 9 -5
+                               0 0 0 0 1"
+        />
+      </filter>
+    </svg>
+  </body>
+</html>
