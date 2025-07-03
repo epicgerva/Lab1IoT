@@ -11,6 +11,7 @@
 #include "i2s_es8311.h"
 #include "player.h"
 #include "touch.h"
+#include "logger.h"
 
 static const char *TAG = "MAIN";
 
@@ -77,6 +78,8 @@ void app_main(void)
         abort();
     }
 
+    logger_init();
+    
     // Inicializar driver I2S
     if (i2s_driver_init() != ESP_OK) {
         ESP_LOGE(TAG, "i2s driver init failed");
@@ -109,6 +112,8 @@ void app_main(void)
 
     // Crear tarea touchpad
     xTaskCreate(touchpad_task, "touchpad_task", 2048, NULL, 3, NULL);
+
+    
 
     ESP_LOGI(TAG, "Sistema inicializado correctamente");
 }

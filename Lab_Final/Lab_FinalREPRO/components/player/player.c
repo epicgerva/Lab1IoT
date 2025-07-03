@@ -4,6 +4,7 @@
 #include "es8311.h"
 #include "esp_log.h"
 #include "freertos/task.h"
+#include "logger.h"
 
 static const char *TAG = "PLAYER";
 static QueueHandle_t player_cmd_queue = NULL;
@@ -35,6 +36,7 @@ static void audio_task(void *args) {
         if (xQueueReceive(player_cmd_queue, &cmd, portMAX_DELAY)) {
             switch (cmd) {
                 case CMD_PLAY:
+                    logger_add_event(LOG_EVENT_PLAY);
                     if (!is_playing) {
                         if (playlist_get_current(&song_start, &song_end) == ESP_OK) {
                             data_ptr = song_start;
@@ -51,17 +53,20 @@ static void audio_task(void *args) {
                     }
                     break;
                 case CMD_PAUSE:
+                    logger_add_event(LOG_EVENT_PAUSE);
                     i2s_channel_disable(tx_handle);
                     is_playing = false;
                     ESP_LOGI(TAG, "[audio_task] Playback paused");
                     break;
                 case CMD_STOP:
+                    logger_add_event(LOG_EVENT_STOP);
                     i2s_channel_disable(tx_handle);
                     data_ptr = song_start;
                     is_playing = false;
                     ESP_LOGI(TAG, "[audio_task] Playback stopped");
                     break;
                 case CMD_NEXT:
+                    logger_add_event(LOG_EVENT_NEXT);
                     if (playlist_next() == ESP_OK && playlist_get_current(&song_start, &song_end) == ESP_OK) {
                         data_ptr = song_start;
                         music_len = song_end - song_start;
@@ -71,6 +76,7 @@ static void audio_task(void *args) {
                     }
                     break;
                 case CMD_PREV:
+                    logger_add_event(LOG_EVENT_PREV);
                     if (playlist_prev() == ESP_OK && playlist_get_current(&song_start, &song_end) == ESP_OK) {
                         data_ptr = song_start;
                         music_len = song_end - song_start;
@@ -80,11 +86,13 @@ static void audio_task(void *args) {
                     }
                     break;
                 case CMD_VOL_UP:
+                    logger_add_event(LOG_EVENT_VOL_UP);
                     if (volume < 100) volume += 5;
                     es8311_voice_volume_set(es_handle, volume, NULL);
                     ESP_LOGI(TAG, "[audio_task] Volume up: %d", volume);
                     break;
                 case CMD_VOL_DOWN:
+                    logger_add_event(LOG_EVENT_VOL_DOWN);
                     if (volume >= 5) volume -= 5;
                     es8311_voice_volume_set(es_handle, volume, NULL);
                     ESP_LOGI(TAG, "[audio_task] Volume down: %d", volume);
