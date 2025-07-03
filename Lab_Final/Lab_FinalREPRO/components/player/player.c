@@ -204,10 +204,10 @@ static void audio_task(void *args) {
 
 esp_err_t player_init(QueueHandle_t *cmd_queue_out) {
     // Bypass audio hardware for testing
-    // ESP_ERROR_CHECK(i2s_driver_init());
-    // ESP_ERROR_CHECK(es8311_codec_init());
-    ESP_LOGW(TAG, "Bypassing audio hardware init for testing!");
-
+    ESP_ERROR_CHECK(i2s_driver_init());
+    ESP_ERROR_CHECK(es8311_codec_init());
+    ESP_LOGW(TAG, "init successful");
+    
     ESP_ERROR_CHECK(playlist_init());
     player_mutex = xSemaphoreCreateMutex();
     player_cmd_queue = xQueueCreate(10, sizeof(player_cmd_t));
