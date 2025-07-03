@@ -1,0 +1,14 @@
+import wave
+import os
+
+os.makedirs("spiffs", exist_ok=True)
+
+for i in range(1, 4):
+    filename = f"spiffs/song{i}.wav"
+    with wave.open(filename, 'w') as wf:
+        wf.setnchannels(1)         # Mono
+        wf.setsampwidth(2)         # 2 bytes por muestra
+        wf.setframerate(44100)     # 44.1kHz
+        wf.writeframes(b'\x00\x00' * 44100)  # 1 segundo de silencio
+
+print("Archivos .wav generados correctamente.")
