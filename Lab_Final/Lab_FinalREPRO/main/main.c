@@ -7,7 +7,6 @@
 #include "delay.h"
 #include "esp_log.h"
 #include "driver/i2s_std.h"
-#include "es8311.h"
 #include "player.h"
 #include "touch.h"
 #include "logger.h"
@@ -166,13 +165,13 @@ void app_main(void)
     // Crear tarea heartbeat (LED)
     xTaskCreate(heartbeat_task, "heartbeat_task", 2048, NULL, 2, NULL);
 
-    // Inicializar touchpad
-    touch_init();
-
     // Crear tarea touchpad
     xTaskCreate(touchpad_task, "touchpad_task", 2048, NULL, 3, NULL);
 
     ESP_LOGI(TAG, "Sistema inicializado correctamente");
 
     test_logger();
+
+    delay_s(2);
+    touch_init();
 }
