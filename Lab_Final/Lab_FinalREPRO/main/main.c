@@ -80,6 +80,7 @@ static void touchpad_task(void *args)
 
 void app_main(void)
 {
+    
     // Inicializar mutex si lo necesitas en otras tareas
     player_state_mutex = xSemaphoreCreateMutex();
     if (player_state_mutex == NULL) {
@@ -115,6 +116,42 @@ void app_main(void)
     
 
     ESP_LOGI(TAG, "Sistema inicializado correctamente");
+
+    // ...existing code...
+
+// ...existing code...
+
+const char* log_event_to_str(log_event_t event) {
+    switch (event) {
+        case LOG_EVENT_PLAY:     return "PLAY";
+        case LOG_EVENT_PAUSE:    return "PAUSE";
+        case LOG_EVENT_NEXT:     return "NEXT";
+        case LOG_EVENT_PREV:     return "PREV";
+        case LOG_EVENT_STOP:     return "STOP";
+        case LOG_EVENT_VOL_UP:   return "VOL_UP";
+        case LOG_EVENT_VOL_DOWN: return "VOL_DOWN";
+        default:                 return "UNKNOWN";
+    }
+}
+
+void test_logger(void)
+{
+    ESP_LOGI(TAG, "Probando logger: agregando eventos...");
+    logger_add_event(LOG_EVENT_PLAY);
+    logger_add_event(LOG_EVENT_NEXT);
+    logger_add_event(LOG_EVENT_STOP);
+
+    log_event_t eventos[LOGGER_SIZE];
+    size_t count = 0;
+    if (logger_get_events(eventos, &count) == ESP_OK) {
+        ESP_LOGI(TAG, "Logger contiene %d eventos:", (int)count);
+        for (size_t i = 0; i < count; ++i) {
+            ESP_LOGI(TAG, "Evento %d: %s", (int)i, log_event_to_str(eventos[i]));
+        }
+    } else {
+        ESP_LOGE(TAG, "No se pudieron leer los eventos del logger");
+    }
+}
 }
 
 
