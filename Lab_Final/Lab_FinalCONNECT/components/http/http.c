@@ -6,6 +6,9 @@
 #include "lwip/err.h"
 #include "lwip/sys.h"
 #include "wifi.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "wifi.h"
 
 static httpd_handle_t server = NULL;
 extern const uint8_t _binary_index_html_start[] asm("_binary_index_html_start");
@@ -18,6 +21,14 @@ extern const uint8_t _binary_style_css_end[] asm("_binary_style_css_end");
 #define POST_BUF_LEN 128
 
 static const char *TAG = "HTTP";
+
+// Task to restart the system after a delay
+static void restart_task(void *pvParameters)
+{
+    ESP_LOGI(TAG, "Restarting system in 3 seconds...");
+    vTaskDelay(3000 / portTICK_PERIOD_MS);
+    esp_restart();
+}
 
 static esp_err_t http_get_handler_html(httpd_req_t *req)
 {
@@ -176,10 +187,20 @@ static esp_err_t http_sta_handler(httpd_req_t *req)
         return ESP_OK;
     }
 
-    init_ap(ssid, password);
+    // Save WiFi configuration to flash
+    esp_err_t save_err = wifi_save_config(WIFI_MODE_STA_FLASH, ssid, password);
+    if (save_err != ESP_OK) {
+        ESP_LOGE(TAG, "Error saving WiFi config: %s", esp_err_to_name(save_err));
+        httpd_resp_sendstr(req, "Error: No se pudo guardar la configuracion.");
+        return ESP_OK;
+    }
+
     char response[POST_BUF_LEN * 2];
-    snprintf(response, sizeof(response), "Conectando a %s", ssid);
+    snprintf(response, sizeof(response), "Configuracion guardada. Conectando a %s. El dispositivo se reiniciara...", ssid);
     httpd_resp_sendstr(req, response);
+
+    // Create task to restart the system after response is sent
+    xTaskCreate(restart_task, "restart_task", 2048, NULL, 5, NULL);
 
     return ESP_OK;
 }
@@ -239,10 +260,20 @@ static esp_err_t http_ap_handler(httpd_req_t *req)
         return ESP_OK;
     }
 
-    init_ap(ssid, password);
+    // Save WiFi configuration to flash
+    esp_err_t save_err = wifi_save_config(WIFI_MODE_AP_FLASH, ssid, password);
+    if (save_err != ESP_OK) {
+        ESP_LOGE(TAG, "Error saving WiFi config: %s", esp_err_to_name(save_err));
+        httpd_resp_sendstr(req, "Error: No se pudo guardar la configuracion.");
+        return ESP_OK;
+    }
+
     char response[POST_BUF_LEN * 2];
-    snprintf(response, sizeof(response), "Conectando a %s", ssid);
+    snprintf(response, sizeof(response), "Configuracion guardada. Creando AP %s. El dispositivo se reiniciara...", ssid);
     httpd_resp_sendstr(req, response);
+
+    // Create task to restart the system after response is sent
+    xTaskCreate(restart_task, "restart_task", 2048, NULL, 5, NULL);
 
     return ESP_OK;
 }
