@@ -92,17 +92,17 @@ void app_main(void)
     
     
 
-    // Inicializar playlist (monta SPIFFS y carga lista)
-    if (playlist_init() != ESP_OK) {
-        ESP_LOGE(TAG, "No se pudo iniciar playlist");
-        abort();
-    }
+    // // Inicializar playlist (monta SPIFFS y carga lista)
+    // if (playlist_init() != ESP_OK) {
+    //     ESP_LOGE(TAG, "No se pudo iniciar playlist");
+    //     abort();
+    // }
 
     // Inicializar player (crea la task de audio y la cola internamente)
-    if (player_init(NULL) != ESP_OK) {
-        ESP_LOGE(TAG, "Error inicializando player");
-        abort();
-    }
+    // if (player_init(NULL) != ESP_OK) {
+    //     ESP_LOGE(TAG, "Error inicializando player");
+    //     abort();
+    // }
 
     // Crear tarea heartbeat (LED)
     xTaskCreate(heartbeat_task, "heartbeat_task", 2048, NULL, 2, NULL);
