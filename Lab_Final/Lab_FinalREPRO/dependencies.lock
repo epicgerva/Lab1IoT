@@ -9,20 +9,13 @@ dependencies:
       registry_url: https://components.espressif.com/
       type: service
     version: 1.0.0~1
-  i2s_examples_common:
-    dependencies: []
-    source:
-      path: /Users/vex/esp/v5.4.1/esp-idf/examples/peripherals/i2s/i2s_examples_common
-      type: local
-    version: '*'
   idf:
     source:
       type: idf
     version: 5.4.1
 direct_dependencies:
 - espressif/es8311
-- i2s_examples_common
 - idf
-manifest_hash: 0ec3d57808f1234ecd5cf5cdf85561174436fbe7e1606d8be19df91c21751432
+manifest_hash: 8d24203f4b4957622c11fa1403cafcc41319db93a9e00bed1b35f6ca67c51c88
 target: esp32s2
 version: 2.0.0

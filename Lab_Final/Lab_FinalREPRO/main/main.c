@@ -8,7 +8,6 @@
 #include "esp_log.h"
 #include "driver/i2s_std.h"
 #include "es8311.h"
-#include "i2s_es8311.h"
 #include "player.h"
 #include "touch.h"
 #include "logger.h"
@@ -17,6 +16,7 @@ static const char *TAG = "MAIN";
 
 // Mutex para recursos compartidos (si lo necesitas en otras tareas)
 static SemaphoreHandle_t player_state_mutex;
+QueueHandle_t player_cmd_queue = NULL;
 
 // Heartbeat: usa player_is_playing() del componente player
 static void heartbeat_task(void *args)
@@ -77,8 +77,8 @@ void app_main(void)
         ESP_LOGE(TAG, "Error creando mutex de estado");
         abort();
     }
-
-    logger_init();
+    ESP_ERROR_CHECK(logger_init());
+    ESP_ERROR_CHECK(player_init(&player_cmd_queue));
     
     // Inicializar driver I2S
     if (i2s_driver_init() != ESP_OK) {
