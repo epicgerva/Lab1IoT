@@ -154,6 +154,7 @@ static void audio_task(void *args) {
                     if (playlist_next() == ESP_OK && playlist_get_current(&song_start, &song_end) == ESP_OK) {
                         data_ptr = song_start;
                         music_len = song_end - song_start;
+                        is_playing = true; // <-- asegúrate de esto si quieres que suene automáticamente
                         ESP_LOGI(TAG, "[audio_task] Siguiente tema");
                     } else {
                         ESP_LOGE(TAG, "No se pudo avanzar al siguiente tema");
@@ -186,10 +187,14 @@ static void audio_task(void *args) {
             }
         }
         if (is_playing && data_ptr && song_end) {
-            if (data_ptr >= song_end) {
+            size_t bytes_to_write = song_end - data_ptr;
+            if (bytes_to_write == 0) {
                 data_ptr = song_start;  // loop
+                bytes_to_write = song_end - song_start;
             }
-            esp_err_t ret = i2s_channel_write(tx_handle, data_ptr, music_len, &bytes_written, portMAX_DELAY);
+            // Limita el tamaño de escritura a un valor razonable (ej: 1024)
+            size_t chunk = bytes_to_write > 1024 ? 1024 : bytes_to_write;
+            esp_err_t ret = i2s_channel_write(tx_handle, data_ptr, chunk, &bytes_written, portMAX_DELAY);
             if (ret == ESP_OK) {
                 data_ptr += bytes_written;
             } else {
