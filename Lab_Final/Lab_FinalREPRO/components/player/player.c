@@ -15,6 +15,7 @@ static QueueHandle_t player_cmd_queue = NULL;
 static SemaphoreHandle_t player_mutex = NULL;
 static bool is_playing = false;
 static uint8_t volume = 60;
+static bool playlist_loop = true; // <-- Variable para controlar el loop de la lista de reproducción
 
 static i2s_chan_handle_t tx_handle = NULL;
 static i2s_chan_handle_t rx_handle = NULL;
@@ -209,7 +210,28 @@ static void audio_task(void *args)
         {
             if (data_ptr >= song_end)
             {
-                data_ptr = song_start; // loop
+                // Avanza a la siguiente canción automáticamente
+                if (playlist_next() == ESP_OK && playlist_get_current(&song_start, &song_end) == ESP_OK)
+                {
+                    data_ptr = song_start;
+                    music_len = song_end - song_start;
+                    ESP_LOGI(TAG, "[audio_task] Reproduciendo siguiente canción automáticamente: %s", playlist_get_current_song());
+                }
+                else
+                {
+                    if (playlist_loop) {
+                        // Vuelve a la primera canción
+                        playlist_set_index(0);
+                        playlist_get_current(&song_start, &song_end);
+                        data_ptr = song_start;
+                        music_len = song_end - song_start;
+                        ESP_LOGI(TAG, "[audio_task] Loop: volviendo al primer tema: %s", playlist_get_current_song());
+                    } else {
+                        ESP_LOGW(TAG, "[audio_task] No hay más canciones, deteniendo reproducción");
+                        is_playing = false;
+                        continue;
+                    }
+                }
             }
             esp_err_t ret = i2s_channel_write(tx_handle, data_ptr, music_len, &bytes_written, portMAX_DELAY);
             if (ret == ESP_OK)
