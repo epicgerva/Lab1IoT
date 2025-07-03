@@ -1,5 +1,10 @@
+<<<<<<< Updated upstream:Lab_Final/Lab_FinalMQTT/components/mqtt/include/mqtt.h
 #ifndef MQTT_H
 #define MQTT_H
+=======
+#ifndef COMUNICATE_MQTT_H
+#define COMUNICATE_MQTT_H
+>>>>>>> Stashed changes:Lab_Final/Lab_FinalMQTT/components/comunicate_mqtt/include/comunicate_mqtt.h
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"

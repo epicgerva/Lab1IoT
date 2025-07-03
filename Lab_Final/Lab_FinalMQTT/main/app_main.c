@@ -2,7 +2,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
-#include "mqtt.h"   // Tu componente MQTT
+#include "comunicate_mqtt.h"   // Tu componente MQTT
 #include "wifi.h"          // Header de tu componente WiFi
 
 #define TOPIC_EVENTO   "lab/iot/eventos"
