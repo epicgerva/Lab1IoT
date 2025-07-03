@@ -243,38 +243,16 @@ static void player_loop_task(void *args)
 
     while (1) {
         if (is_playing && data_ptr && song_end) {
-            if (data_ptr >= song_end) {
-                // Avanza a la siguiente canción automáticamente
-                if (playlist_next() == ESP_OK && playlist_get_current(&song_start, &song_end) == ESP_OK) {
-                    data_ptr = song_start;
-                    music_len = song_end - song_start;
-                    ESP_LOGI(TAG, "[player_loop_task] Reproduciendo siguiente canción automáticamente: %s", playlist_get_current_song());
-                } else {
-                    if (playlist_loop) {
-                        // Vuelve a la primera canción
-                        playlist_set_index(0);
-                        playlist_get_current(&song_start, &song_end);
-                        data_ptr = song_start;
-                        music_len = song_end - song_start;
-                        ESP_LOGI(TAG, "[player_loop_task] Loop: volviendo al primer tema: %s", playlist_get_current_song());
-                    } else {
-                        ESP_LOGW(TAG, "[player_loop_task] No hay más canciones, deteniendo reproducción");
-                        is_playing = false;
-                        vTaskDelay(pdMS_TO_TICKS(100));
-                        continue;
-                    }
-                }
+            size_t bytes_to_write = song_end - data_ptr;
+            if (bytes_to_write == 0) {
+                // Cuando termina la canción, manda el comando CMD_NEXT
+                ESP_LOGI(TAG, "[player_loop_task] Fin de canción, enviando CMD_NEXT");
+                player_send_cmd(CMD_NEXT);
+                // Espera un poco para evitar múltiples envíos
+                vTaskDelay(pdMS_TO_TICKS(200));
             }
-
-            // Aquí deberías poner la llamada a i2s_channel_write o tu simulación de reproducción
-            // Ejemplo (simulación):
-            ESP_LOGI(TAG, "[player_loop_task] Simulando reproducción de %d bytes", (int)music_len);
-            data_ptr = song_end; // Simula que se terminó la canción
-
-            vTaskDelay(pdMS_TO_TICKS(1000)); // Simula tiempo de reproducción
-        } else {
-            vTaskDelay(pdMS_TO_TICKS(100));
         }
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
 
