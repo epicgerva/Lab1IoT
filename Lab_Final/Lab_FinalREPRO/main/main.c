@@ -18,19 +18,69 @@ static const char *TAG = "MAIN";
 static SemaphoreHandle_t player_state_mutex;
 QueueHandle_t player_cmd_queue = NULL;
 
+const char *log_event_to_str(log_event_t event)
+{
+    switch (event)
+    {
+    case LOG_EVENT_PLAY:
+        return "PLAY";
+    case LOG_EVENT_PAUSE:
+        return "PAUSE";
+    case LOG_EVENT_NEXT:
+        return "NEXT";
+    case LOG_EVENT_PREV:
+        return "PREV";
+    case LOG_EVENT_STOP:
+        return "STOP";
+    case LOG_EVENT_VOL_UP:
+        return "VOL_UP";
+    case LOG_EVENT_VOL_DOWN:
+        return "VOL_DOWN";
+    default:
+        return "UNKNOWN";
+    }
+}
+
+void test_logger(void)
+{
+    ESP_LOGI("LOGGER", "Probando logger: agregando eventos...");
+    logger_add_event(LOG_EVENT_PLAY);
+    logger_add_event(LOG_EVENT_NEXT);
+    logger_add_event(LOG_EVENT_STOP);
+
+    log_event_t eventos[LOGGER_SIZE];
+    size_t count = 0;
+    if (logger_get_events(eventos, &count) == ESP_OK)
+    {
+        ESP_LOGI("LOGGER", "Logger contiene %d eventos:", (int)count);
+        for (size_t i = 0; i < count; ++i)
+        {
+            ESP_LOGI("LOGGER", "Evento %d: %s", (int)i, log_event_to_str(eventos[i]));
+        }
+    }
+    else
+    {
+        ESP_LOGE("LOGGER", "No se pudieron leer los eventos del logger");
+    }
+}
+
 // Heartbeat: usa player_is_playing() del componente player
 static void heartbeat_task(void *args)
 {
-    while (1) {
-        if (player_is_playing()) {
-            set_led(0, 50, 0);  // verde
+    while (1)
+    {
+        if (player_is_playing())
+        {
+            set_led(0, 50, 0); // verde
             vTaskDelay(pdMS_TO_TICKS(500));
-            set_led(0, 0, 0);   // apagado
+            set_led(0, 0, 0); // apagado
             vTaskDelay(pdMS_TO_TICKS(500));
-        } else {
-            set_led(0, 0, 10);  // azul tenue
+        }
+        else
+        {
+            set_led(0, 0, 10); // azul tenue
             vTaskDelay(pdMS_TO_TICKS(500));
-            set_led(0, 0, 0);   // apagado
+            set_led(0, 0, 0); // apagado
             vTaskDelay(pdMS_TO_TICKS(500));
         }
     }
@@ -38,38 +88,48 @@ static void heartbeat_task(void *args)
 
 static void touchpad_task(void *args)
 {
-    while (1) {
+    while (1)
+    {
         touch_update();
 
-        if (touch_pressed(TOUCH_VOLUME_UP)) {
+        if (touch_pressed(TOUCH_VOLUME_UP))
+        {
             ESP_LOGI(TAG, "Touch: VOLUME UP");
             player_send_cmd(CMD_VOL_UP);
         }
-        if (touch_pressed(TOUCH_VOLUME_DOWN)) {
+        if (touch_pressed(TOUCH_VOLUME_DOWN))
+        {
             ESP_LOGI(TAG, "Touch: VOLUME DOWN");
             player_send_cmd(CMD_VOL_DOWN);
         }
-        if (touch_pressed(TOUCH_PLAY_PAUSE)) {
+        if (touch_pressed(TOUCH_PLAY_PAUSE))
+        {
             static bool last_play = false;
-            if (!last_play) {
+            if (!last_play)
+            {
                 ESP_LOGI(TAG, "Touch: PLAY");
                 player_send_cmd(CMD_PLAY);
                 last_play = true;
-            } else {
+            }
+            else
+            {
                 ESP_LOGI(TAG, "Touch: PAUSE");
                 player_send_cmd(CMD_PAUSE);
                 last_play = false;
             }
         }
-        if (touch_pressed(TOUCH_PHOTO)) { // Asume que TOUCH_PHOTO es PREV
+        if (touch_pressed(TOUCH_PHOTO))
+        { // Asume que TOUCH_PHOTO es PREV
             ESP_LOGI(TAG, "Touch: PREV");
             player_send_cmd(CMD_PREV);
         }
-        if (touch_pressed(TOUCH_RECORD)) { // Asume que TOUCH_RECORD es NEXT
+        if (touch_pressed(TOUCH_RECORD))
+        { // Asume que TOUCH_RECORD es NEXT
             ESP_LOGI(TAG, "Touch: NEXT");
             player_send_cmd(CMD_NEXT);
         }
-        if (touch_pressed(TOUCH_NETWORK)) { // STOP
+        if (touch_pressed(TOUCH_NETWORK))
+        { // STOP
             ESP_LOGI(TAG, "Touch: STOP");
             player_send_cmd(CMD_STOP);
         }
@@ -80,17 +140,16 @@ static void touchpad_task(void *args)
 
 void app_main(void)
 {
-    
+
     // Inicializar mutex si lo necesitas en otras tareas
     player_state_mutex = xSemaphoreCreateMutex();
-    if (player_state_mutex == NULL) {
+    if (player_state_mutex == NULL)
+    {
         ESP_LOGE(TAG, "Error creando mutex de estado");
         abort();
     }
     ESP_ERROR_CHECK(logger_init());
     ESP_ERROR_CHECK(player_init(&player_cmd_queue));
-    
-    
 
     // // Inicializar playlist (monta SPIFFS y carga lista)
     // if (playlist_init() != ESP_OK) {
@@ -113,45 +172,7 @@ void app_main(void)
     // Crear tarea touchpad
     xTaskCreate(touchpad_task, "touchpad_task", 2048, NULL, 3, NULL);
 
-    
-
     ESP_LOGI(TAG, "Sistema inicializado correctamente");
 
-    // ...existing code...
-
-// ...existing code...
-
-const char* log_event_to_str(log_event_t event) {
-    switch (event) {
-        case LOG_EVENT_PLAY:     return "PLAY";
-        case LOG_EVENT_PAUSE:    return "PAUSE";
-        case LOG_EVENT_NEXT:     return "NEXT";
-        case LOG_EVENT_PREV:     return "PREV";
-        case LOG_EVENT_STOP:     return "STOP";
-        case LOG_EVENT_VOL_UP:   return "VOL_UP";
-        case LOG_EVENT_VOL_DOWN: return "VOL_DOWN";
-        default:                 return "UNKNOWN";
-    }
+    test_logger();
 }
-
-void test_logger(void)
-{
-    ESP_LOGI(TAG, "Probando logger: agregando eventos...");
-    logger_add_event(LOG_EVENT_PLAY);
-    logger_add_event(LOG_EVENT_NEXT);
-    logger_add_event(LOG_EVENT_STOP);
-
-    log_event_t eventos[LOGGER_SIZE];
-    size_t count = 0;
-    if (logger_get_events(eventos, &count) == ESP_OK) {
-        ESP_LOGI(TAG, "Logger contiene %d eventos:", (int)count);
-        for (size_t i = 0; i < count; ++i) {
-            ESP_LOGI(TAG, "Evento %d: %s", (int)i, log_event_to_str(eventos[i]));
-        }
-    } else {
-        ESP_LOGE(TAG, "No se pudieron leer los eventos del logger");
-    }
-}
-}
-
-
