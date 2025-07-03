@@ -1,8 +1,9 @@
-#ifndef MQTT_MODULE_H
-#define MQTT_MODULE_H
+#ifndef MQTT_H
+#define MQTT_H
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "mqtt_client.h"
 
 // Conecta al broker MQTT y suscribe al topic_evento con Last Will Message
 void connect_mqtt(const char *uri, int puerto, const char *topic_evento);
