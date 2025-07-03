@@ -2,144 +2,78 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
-#include "freertos/queue.h"
-#include "TaskA.h"
-#include "TaskB.h"
-#include "TaskC.h"
+#include "playlist.h"
+#include "led.h"
+#include "delay.h"
+#include "esp_log.h"
+#include "driver/i2s_std.h"
+#include "es8311.h"
 #include "i2s_es8311.h"
+#include "player.h"
+#include "touch.h"
 
+static const char *TAG = "MAIN";
 
-typedef enum {
-    CMD_PLAY,
-    CMD_PAUSE,
-    CMD_STOP,
-    CMD_NEXT,
-    CMD_PREV,
-    CMD_VOL_UP,
-    CMD_VOL_DOWN
-} player_cmd_t;
+// Mutex para recursos compartidos (si lo necesitas en otras tareas)
+static SemaphoreHandle_t player_state_mutex;
 
-static QueueHandle_t player_cmd_queue;
-static bool is_playing = false;
-static uint8_t volume = EXAMPLE_VOICE_VOLUME;
-
-static void audio_task(void *args) {
-    player_cmd_t cmd;
-    size_t bytes_written = 0;
-    uint8_t *data_ptr = (uint8_t *)music_pcm_start;
-    size_t music_len = music_pcm_end - music_pcm_start;
-
-    while (1) {
-        if (xQueueReceive(player_cmd_queue, &cmd, portMAX_DELAY)) {
-            switch (cmd) {
-                case CMD_PLAY:
-                    if (!is_playing) {
-                        data_ptr = (uint8_t *)music_pcm_start;
-                        i2s_channel_disable(tx_handle);
-                        i2s_channel_preload_data(tx_handle, data_ptr, music_len, &bytes_written);
-                        data_ptr += bytes_written;
-                        i2s_channel_enable(tx_handle);
-                        is_playing = true;
-                        ESP_LOGI(TAG, "[audio_task] Playback started");
-                    }
-                    break;
-
-                case CMD_PAUSE:
-                    i2s_channel_disable(tx_handle);
-                    is_playing = false;
-                    ESP_LOGI(TAG, "[audio_task] Playback paused");
-                    break;
-
-                case CMD_STOP:
-                    i2s_channel_disable(tx_handle);
-                    data_ptr = (uint8_t *)music_pcm_start;
-                    is_playing = false;
-                    ESP_LOGI(TAG, "[audio_task] Playback stopped");
-                    break;
-
-                case CMD_NEXT:
-                case CMD_PREV:
-                    
-                    data_ptr = (uint8_t *)music_pcm_start;
-                    ESP_LOGI(TAG, "[audio_task] Track restarted");
-                    break;
-
-                case CMD_VOL_UP:
-                    if (volume < 100) volume += 5;
-                    es8311_voice_volume_set(es_handle, volume, NULL);
-                    ESP_LOGI(TAG, "[audio_task] Volume up: %d", volume);
-                    break;
-
-                case CMD_VOL_DOWN:
-                    if (volume >= 5) volume -= 5;
-                    es8311_voice_volume_set(es_handle, volume, NULL);
-                    ESP_LOGI(TAG, "[audio_task] Volume down: %d", volume);
-                    break;
-
-                default:
-                    break;
-            }
-        }
-
-        // Loop de reproducción si está activo
-        if (is_playing) {
-            if (data_ptr >= music_pcm_end) {
-                data_ptr = (uint8_t *)music_pcm_start;  // loop
-            }
-
-            esp_err_t ret = i2s_channel_write(tx_handle, data_ptr, music_len, &bytes_written, portMAX_DELAY);
-            if (ret == ESP_OK) {
-                data_ptr += bytes_written;
-            } else {
-                ESP_LOGE(TAG, "[audio_task] i2s write error");
-                is_playing = false;
-            }
-        } else {
-            vTaskDelay(pdMS_TO_TICKS(100));  // Espera pasiva
-        }
-    }
-
-    vTaskDelete(NULL);
-}
-
-
-        // Si está reproduciendo, seguir escribiendo audio
-        if (is_playing) {
-            if (data_ptr >= music_pcm_end) {
-                data_ptr = (uint8_t *)music_pcm_start;
-            }
-            i2s_channel_write(tx_handle, data_ptr, music_len, &bytes_written, portMAX_DELAY);
-            data_ptr += bytes_written;
-        } else {
-            vTaskDelay(pdMS_TO_TICKS(100));  // ahorro de CPU
-        }
-    }
-}
-
+// Heartbeat: usa player_is_playing() del componente player
 static void heartbeat_task(void *args)
 {
     while (1) {
-        if (is_playing) {
-            // Parpadeo en verde si está reproduciendo
+        if (player_is_playing()) {
             set_led(0, 50, 0);  // verde
             vTaskDelay(pdMS_TO_TICKS(200));
             set_led(0, 0, 0);   // apagado
             vTaskDelay(pdMS_TO_TICKS(800));
         } else {
-            // LED azul tenue constante si está pausado o detenido
-            set_led(0, 0, 10);
+            set_led(0, 0, 10);  // azul tenue
             vTaskDelay(pdMS_TO_TICKS(1000));
         }
     }
 }
 
+static void touchpad_task(void *args)
+{
+    while (1) {
+        touch_update();
+
+        if (touch_pressed(TOUCH_VOLUME_UP)) {
+            player_send_cmd(CMD_VOL_UP);
+        }
+        if (touch_pressed(TOUCH_VOLUME_DOWN)) {
+            player_send_cmd(CMD_VOL_DOWN);
+        }
+        if (touch_pressed(TOUCH_PLAY_PAUSE)) {
+            static bool last_play = false;
+            if (!last_play) {
+                player_send_cmd(CMD_PLAY);
+                last_play = true;
+            } else {
+                player_send_cmd(CMD_PAUSE);
+                last_play = false;
+            }
+        }
+        if (touch_pressed(TOUCH_PHOTO)) { // Asume que TOUCH_PHOTO es PREV
+            player_send_cmd(CMD_PREV);
+        }
+        if (touch_pressed(TOUCH_RECORD)) { // Asume que TOUCH_RECORD es NEXT
+            player_send_cmd(CMD_NEXT);
+        }
+        if (touch_pressed(TOUCH_NETWORK)) { // STOP
+            player_send_cmd(CMD_STOP);
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+}
 
 void app_main(void)
 {
-    // Crear cola para comandos del reproductor
-    player_cmd_queue = xQueueCreate(10, sizeof(player_cmd_t));
-    if (player_cmd_queue == NULL) {
-        ESP_LOGE(TAG, "Error creando cola de comandos");
+    // Inicializar mutex si lo necesitas en otras tareas
+    player_state_mutex = xSemaphoreCreateMutex();
+    if (player_state_mutex == NULL) {
+        ESP_LOGE(TAG, "Error creando mutex de estado");
         abort();
     }
 
@@ -155,15 +89,28 @@ void app_main(void)
         abort();
     }
 
-    // Inicializar volumen y estado
-    volume = EXAMPLE_VOICE_VOLUME;
-    is_playing = false;
+    // Inicializar playlist (monta SPIFFS y carga lista)
+    if (playlist_init() != ESP_OK) {
+        ESP_LOGE(TAG, "No se pudo iniciar playlist");
+        abort();
+    }
 
-    // Crear tarea de audio (reproducción)
-    xTaskCreate(audio_task, "audio_task", 8192, NULL, 5, NULL);
+    // Inicializar player (crea la task de audio y la cola internamente)
+    if (player_init(NULL) != ESP_OK) {
+        ESP_LOGE(TAG, "Error inicializando player");
+        abort();
+    }
 
     // Crear tarea heartbeat (LED)
     xTaskCreate(heartbeat_task, "heartbeat_task", 2048, NULL, 2, NULL);
-    ESP_LOGI(TAG, "Sistema inicializado correctamente");
 
+    // Inicializar touchpad
+    touch_init();
+
+    // Crear tarea touchpad
+    xTaskCreate(touchpad_task, "touchpad_task", 2048, NULL, 3, NULL);
+
+    ESP_LOGI(TAG, "Sistema inicializado correctamente");
 }
+
+
