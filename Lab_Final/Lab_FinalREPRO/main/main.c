@@ -24,12 +24,14 @@ static void heartbeat_task(void *args)
     while (1) {
         if (player_is_playing()) {
             set_led(0, 50, 0);  // verde
-            vTaskDelay(pdMS_TO_TICKS(200));
+            vTaskDelay(pdMS_TO_TICKS(500));
             set_led(0, 0, 0);   // apagado
-            vTaskDelay(pdMS_TO_TICKS(800));
+            vTaskDelay(pdMS_TO_TICKS(500));
         } else {
             set_led(0, 0, 10);  // azul tenue
-            vTaskDelay(pdMS_TO_TICKS(1000));
+            vTaskDelay(pdMS_TO_TICKS(500));
+            set_led(0, 0, 0);   // apagado
+            vTaskDelay(pdMS_TO_TICKS(500));
         }
     }
 }
