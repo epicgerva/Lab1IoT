@@ -43,7 +43,7 @@ static int publish_json_base64(const char *topic, cJSON *json) {
     }
     free(base64_buf);
     cJSON_free(json_str);
-    return msg_id;  // <-- Retorno msg_id para controlar confirmación
+    return msg_id;
 }
 
 // Función para publicar el siguiente evento en la secuencia
@@ -58,7 +58,6 @@ static void publicar_siguiente_evento(void) {
         }
     } else {
         ESP_LOGI(TAG, "Todos los eventos publicados");
-        // Liberar memoria de los JSONs
         for (int i = 0; i < eventos_json_count; i++) {
             cJSON_Delete(eventos_json_buffer[i]);
         }
@@ -97,7 +96,6 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 
         if (strcmp(topic, eventos_topic) == 0) {
             if (strcmp(data, "Enviar") == 0 && eventos_buffer && eventos_buffer_size > 0) {
-                // --- Modificación: Crear buffer de cJSON y comenzar publicación secuencial ---
                 if (eventos_json_buffer != NULL) {
                     ESP_LOGW(TAG, "Ya hay una publicación en curso, ignorando comando Enviar");
                     break;
@@ -110,7 +108,6 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
                     cJSON_AddNumberToObject(eventos_json_buffer[i], "valor", eventos_buffer[i]);
                 }
                 publicar_siguiente_evento();
-                // --- Fin modificación ---
             } else if (
                 strcmp(data, "play") == 0 ||
                 strcmp(data, "pausa") == 0 ||
@@ -134,7 +131,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         if (esperando_ack) {
             eventos_json_index++;
             esperando_ack = false;
-            publicar_siguiente_evento();  // Publicar siguiente mensaje tras confirmación
+            publicar_siguiente_evento();  
         }
         break;
     }

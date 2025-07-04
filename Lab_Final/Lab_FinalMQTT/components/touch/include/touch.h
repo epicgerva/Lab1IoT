@@ -9,7 +9,7 @@
 #define TOUCH_RECORD 5
 #define TOUCH_PHOTO 6
 #define TOUCH_NETWORK 11
-#define TOUCH_VOLUME_DOWN 14
+#define TOUCH_VOLUME_DOWN 3
 
 void touch_init(void);
 
