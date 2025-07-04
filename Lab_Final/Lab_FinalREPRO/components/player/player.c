@@ -67,7 +67,7 @@ static esp_err_t i2s_driver_init(void)
     ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, &tx_handle, &rx_handle));
     i2s_std_config_t std_cfg = {
         .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(EXAMPLE_SAMPLE_RATE),
-        .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO),
+        .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO),
         .gpio_cfg = {
             .mclk = I2S_MCK_IO,
             .bclk = I2S_BCK_IO,
@@ -91,7 +91,7 @@ static esp_err_t i2s_driver_init(void)
     ESP_LOGI(TAG, "Using BSP for HW configuration");
     i2s_std_config_t std_cfg = {
         .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(EXAMPLE_SAMPLE_RATE),
-        .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO),
+        .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO),
         .gpio_cfg = BSP_I2S_GPIO_CFG,
     };
     std_cfg.clk_cfg.mclk_multiple = EXAMPLE_MCLK_MULTIPLE;
@@ -119,12 +119,13 @@ static void audio_task(void *args)
                 logger_add_event(LOG_EVENT_PLAY);
                 if (!is_playing)
                 {
+                    // Si hay un stream abierto, reanudamos la posición actual
                     if (stream_open) {
-                        playlist_close_stream();
-                        stream_open = false;
+                        is_playing = true;
+                        ESP_LOGI(TAG, "[audio_task] Reanudando reproducción desde posición %ld", playlist_get_stream_position());
                     }
-                    
-                    if (playlist_open_current_stream() == ESP_OK)
+                    // si no hay stream abierto, abrimos uno para la canción actual
+                    else if (playlist_open_current_stream() == ESP_OK) 
                     {
                         stream_open = true;
                         is_playing = true;
