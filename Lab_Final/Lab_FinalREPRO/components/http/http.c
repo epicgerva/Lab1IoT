@@ -9,6 +9,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "wifi.h"
+#include "player.h"
 
 static httpd_handle_t server = NULL;
 extern const uint8_t _binary_index_html_start[] asm("_binary_index_html_start");
@@ -18,7 +19,7 @@ extern const uint8_t _binary_script_js_end[] asm("_binary_script_js_end");
 extern const uint8_t _binary_style_css_start[] asm("_binary_style_css_start");
 extern const uint8_t _binary_style_css_end[] asm("_binary_style_css_end");
 
-#define POST_BUF_LEN 128
+#define POST_BUF_LEN 1024
 
 static const char *TAG = "HTTP";
 
@@ -108,14 +109,37 @@ static esp_err_t http_comando_handler(httpd_req_t *req)
 
         if (strcmp(param_val, "play") == 0)
         {
+            player_send_cmd(CMD_PLAY);
             asprintf(&result, "%s", "Comando play ejecutado");
         }
         else if (strcmp(param_val, "pause") == 0)
         {
+            player_send_cmd(CMD_PAUSE);
             asprintf(&result, "%s", "Comando pause ejecutado");
+        }
+        else if (strcmp(param_val, "next") == 0)
+        {
+            player_send_cmd(CMD_NEXT);
+            asprintf(&result, "%s", "Comando next ejecutado");
+        }
+        else if (strcmp(param_val, "prev") == 0)
+        {
+            player_send_cmd(CMD_PREV);
+            asprintf(&result, "%s", "Comando prev ejecutado");
+        }
+        else if (strcmp(param_val, "volup") == 0)
+        {
+            player_set_volume(player_get_volume() + 5);
+            asprintf(&result, "%s", "Comando volup ejecutado");
+        }
+        else if (strcmp(param_val, "voldown") == 0)
+        {
+            player_set_volume(player_get_volume() - 5);
+            asprintf(&result, "%s", "Comando voldown ejecutado");
         }
         else if (strcmp(param_val, "stop") == 0)
         {
+            player_send_cmd(CMD_STOP);
             asprintf(&result, "%s", "Comando stop ejecutado");
         }
         else
