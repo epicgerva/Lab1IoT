@@ -169,8 +169,6 @@ void app_main(void)
 
     ESP_LOGI(TAG, "Sistema inicializado correctamente");
 
-    test_logger();
-
     delay_s(2);
     player_send_cmd(CMD_PLAY);
 
