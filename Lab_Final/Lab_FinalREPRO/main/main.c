@@ -206,6 +206,8 @@ void app_main(void)
 
     init_wifi();
 
+    init_player();
+
     // delay_s(2);
     // touch_init();
     // xTaskCreate(touchpad_task, "touchpad_task", 2048, NULL, 3, NULL);
