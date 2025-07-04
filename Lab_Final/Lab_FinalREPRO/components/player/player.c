@@ -15,7 +15,6 @@ static QueueHandle_t player_cmd_queue = NULL;
 static SemaphoreHandle_t player_mutex = NULL;
 static bool is_playing = false;
 static uint8_t volume = 60;
-static bool playlist_loop = true; // <-- Variable para controlar el loop de la lista de reproducción
 
 static i2s_chan_handle_t tx_handle = NULL;
 static i2s_chan_handle_t rx_handle = NULL;
@@ -208,7 +207,18 @@ static void audio_task(void *args)
         }
         if (is_playing && data_ptr && song_end)
         {
-            esp_err_t ret = i2s_channel_write(tx_handle, data_ptr, music_len, &bytes_written, portMAX_DELAY);
+            size_t bytes_to_write = song_end - data_ptr;
+            if (bytes_to_write == 0)
+            {
+                // Fin de canción detectado: manda el comando CMD_NEXT
+                ESP_LOGI(TAG, "[audio_task] Fin de canción, enviando CMD_NEXT");
+                player_send_cmd(CMD_NEXT);
+                is_playing = false; // Detén la reproducción hasta que llegue el siguiente comando
+                vTaskDelay(pdMS_TO_TICKS(200));
+                continue;
+            }
+            size_t chunk = bytes_to_write > 1024 ? 1024 : bytes_to_write;
+            esp_err_t ret = i2s_channel_write(tx_handle, data_ptr, chunk, &bytes_written, portMAX_DELAY);
             if (ret == ESP_OK)
             {
                 data_ptr += bytes_written;
@@ -226,35 +236,6 @@ static void audio_task(void *args)
     }
 }
 
-static void player_loop_task(void *args)
-{
-    uint8_t *data_ptr = NULL;
-    uint8_t *song_start = NULL;
-    uint8_t *song_end = NULL;
-    size_t music_len = 0;
-
-    // Cargar la canción actual al iniciar
-    if (playlist_get_current(&song_start, &song_end) == ESP_OK) {
-        data_ptr = song_start;
-        music_len = song_end - song_start;
-    } else {
-        ESP_LOGE(TAG, "No se pudo cargar la canción inicial");
-    }
-
-    while (1) {
-        if (is_playing && data_ptr && song_end) {
-            size_t bytes_to_write = song_end - data_ptr;
-            if (bytes_to_write == 0) {
-                // Cuando termina la canción, manda el comando CMD_NEXT
-                ESP_LOGI(TAG, "[player_loop_task] Fin de canción, enviando CMD_NEXT");
-                player_send_cmd(CMD_NEXT);
-                // Espera un poco para evitar múltiples envíos
-                vTaskDelay(pdMS_TO_TICKS(200));
-            }
-        }
-        vTaskDelay(pdMS_TO_TICKS(100));
-    }
-}
 
 esp_err_t player_init(QueueHandle_t *cmd_queue_out)
 {
@@ -292,7 +273,6 @@ esp_err_t player_init(QueueHandle_t *cmd_queue_out)
     player_mutex = xSemaphoreCreateMutex();
     player_cmd_queue = xQueueCreate(10, sizeof(player_cmd_t));
     xTaskCreate(audio_task, "audio_task", 8192, NULL, 5, NULL);
-    xTaskCreate(player_loop_task, "player_loop_task", 8192, NULL, 5, NULL);
     if (cmd_queue_out)
         *cmd_queue_out = player_cmd_queue;
     return ESP_OK;
