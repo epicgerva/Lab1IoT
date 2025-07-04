@@ -167,6 +167,7 @@ static void audio_task(void *args)
                 {
                     data_ptr = song_start;
                     music_len = song_end - song_start;
+                    is_playing = true; // <-- ¡Esto es clave!
                     ESP_LOGI(TAG, "[audio_task] Siguiente tema");
                 }
                 else
