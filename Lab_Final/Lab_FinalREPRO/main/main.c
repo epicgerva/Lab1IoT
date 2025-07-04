@@ -43,29 +43,6 @@ const char *log_event_to_str(log_event_t event)
     }
 }
 
-void test_logger(void)
-{
-    ESP_LOGI("LOGGER", "Probando logger: agregando eventos...");
-    logger_add_event(LOG_EVENT_PLAY);
-    logger_add_event(LOG_EVENT_NEXT);
-    logger_add_event(LOG_EVENT_STOP);
-
-    log_event_t eventos[LOGGER_SIZE];
-    size_t count = 0;
-    if (logger_get_events(eventos, &count) == ESP_OK)
-    {
-        ESP_LOGI("LOGGER", "Logger contiene %d eventos:", (int)count);
-        for (size_t i = 0; i < count; ++i)
-        {
-            ESP_LOGI("LOGGER", "Evento %d: %s", (int)i, log_event_to_str(eventos[i]));
-        }
-    }
-    else
-    {
-        ESP_LOGE("LOGGER", "No se pudieron leer los eventos del logger");
-    }
-}
-
 // Heartbeat: usa player_is_playing() del componente player
 static void heartbeat_task(void *args)
 {

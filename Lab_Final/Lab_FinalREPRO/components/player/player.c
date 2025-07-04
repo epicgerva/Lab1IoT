@@ -1,13 +1,13 @@
 #include "player.h"
 #include "playlist.h"
 #include "es8311.h"
-#include "logger.h" // <-- Agrega este include
+#include "logger.h" 
 #include "driver/i2s_std.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
-#include "esp_check.h" // <-- Agrega este include para los macros ESP_RETURN_ON_*
+#include "esp_check.h" 
 #include "example_config.h"
 
 static const char *TAG = "PLAYER";
@@ -15,13 +15,12 @@ static QueueHandle_t player_cmd_queue = NULL;
 static SemaphoreHandle_t player_mutex = NULL;
 static bool is_playing = false;
 static uint8_t volume = 60;
-static bool playlist_loop = true; // <-- Variable para controlar el loop de la lista de reproducción
 
 static i2s_chan_handle_t tx_handle = NULL;
 static i2s_chan_handle_t rx_handle = NULL;
 static es8311_handle_t es_handle = NULL;
 
-// ...define pines y parámetros aquí...
+
 
 static esp_err_t es8311_codec_init(void)
 {
@@ -168,6 +167,7 @@ static void audio_task(void *args)
                 {
                     data_ptr = song_start;
                     music_len = song_end - song_start;
+                    is_playing = true; // <-- ¡Esto es clave!
                     ESP_LOGI(TAG, "[audio_task] Siguiente tema");
                 }
                 else
@@ -208,32 +208,18 @@ static void audio_task(void *args)
         }
         if (is_playing && data_ptr && song_end)
         {
-            if (data_ptr >= song_end)
+            size_t bytes_to_write = song_end - data_ptr;
+            if (bytes_to_write == 0)
             {
-                // Avanza a la siguiente canción automáticamente
-                if (playlist_next() == ESP_OK && playlist_get_current(&song_start, &song_end) == ESP_OK)
-                {
-                    data_ptr = song_start;
-                    music_len = song_end - song_start;
-                    ESP_LOGI(TAG, "[audio_task] Reproduciendo siguiente canción automáticamente: %s", playlist_get_current_song());
-                }
-                else
-                {
-                    if (playlist_loop) {
-                        // Vuelve a la primera canción
-                        playlist_set_index(0);
-                        playlist_get_current(&song_start, &song_end);
-                        data_ptr = song_start;
-                        music_len = song_end - song_start;
-                        ESP_LOGI(TAG, "[audio_task] Loop: volviendo al primer tema: %s", playlist_get_current_song());
-                    } else {
-                        ESP_LOGW(TAG, "[audio_task] No hay más canciones, deteniendo reproducción");
-                        is_playing = false;
-                        continue;
-                    }
-                }
+                // Fin de canción detectado: manda el comando CMD_NEXT
+                ESP_LOGI(TAG, "[audio_task] Fin de canción, enviando CMD_NEXT");
+                player_send_cmd(CMD_NEXT);
+                is_playing = false; // Detén la reproducción hasta que llegue el siguiente comando
+                vTaskDelay(pdMS_TO_TICKS(200));
+                continue;
             }
-            esp_err_t ret = i2s_channel_write(tx_handle, data_ptr, music_len, &bytes_written, portMAX_DELAY);
+            size_t chunk = bytes_to_write > 1024 ? 1024 : bytes_to_write;
+            esp_err_t ret = i2s_channel_write(tx_handle, data_ptr, chunk, &bytes_written, portMAX_DELAY);
             if (ret == ESP_OK)
             {
                 data_ptr += bytes_written;
@@ -250,6 +236,7 @@ static void audio_task(void *args)
         }
     }
 }
+
 
 esp_err_t player_init(QueueHandle_t *cmd_queue_out)
 {
