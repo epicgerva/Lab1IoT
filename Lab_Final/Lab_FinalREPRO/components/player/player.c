@@ -161,10 +161,9 @@ static void audio_task(void *args)
                 if (playlist_next() == ESP_OK)
                 {
                     ESP_LOGI(TAG, "[audio_task] Siguiente canción: %s", playlist_get_current_song());
-                    // Always start playing the next song
                     if (playlist_open_current_stream() == ESP_OK) {
                         stream_open = true;
-                        is_playing = true;  // Force playing state
+                        is_playing = true;  // Forzar play
                         ESP_LOGI(TAG, "[audio_task] Siguiente canción iniciada");
                     } else {
                         is_playing = false;
@@ -187,16 +186,13 @@ static void audio_task(void *args)
                 if (playlist_prev() == ESP_OK)
                 {
                     ESP_LOGI(TAG, "[audio_task] Canción anterior: %s", playlist_get_current_song());
-                    if (is_playing) {
-                        if (playlist_open_current_stream() == ESP_OK) {
-                            stream_open = true;
-                            ESP_LOGI(TAG, "[audio_task] Canción anterior (auto-play)");
-                        } else {
-                            is_playing = false;
-                            ESP_LOGE(TAG, "No se pudo abrir stream de la canción anterior");
-                        }
+                    if (playlist_open_current_stream() == ESP_OK) {
+                        stream_open = true;
+                        is_playing = true;  // Forzar play
+                        ESP_LOGI(TAG, "[audio_task] Canción anterior iniciada");
                     } else {
-                        ESP_LOGI(TAG, "[audio_task] Canción anterior cargada pero no se reproduce (no playing)");
+                        is_playing = false;
+                        ESP_LOGE(TAG, "No se pudo abrir stream de la canción anterior");
                     }
                 }
                 else
