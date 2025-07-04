@@ -13,8 +13,8 @@
 #include "wifi.h"
 #include "http.h"
 #include "nvs_flash.h"
-#include "comunicate_mqtt.h"   //MQTT
-
+#include "comunicate_mqtt.h"
+#include "freertos/queue.h"
 
 static const char *TAG = "MAIN";
 
@@ -119,16 +119,30 @@ static void touchpad_task(void *args)
     }
 }
 
-void app_main(void)
+// Main para el MQTT, cambiar variables para usar las ya creadas
+#define TOPIC_EVENTO "lab/iot/eventos"
+#define TOPIC_BUFFER "lab/iot/buffer"
+#define QUEUE_LENGTH 10
+#define BUFFER_SIZE 5
+
+static QueueHandle_t eventos_queue;
+static int eventos_buffer[BUFFER_SIZE] = {10, 20, 30, 40, 50};
+
+static void eventos_task(void *pvParameters)
 {
-    esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
+    char *cmd;
+    while (1)
     {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ret = nvs_flash_init();
+        if (xQueueReceive(eventos_queue, &cmd, portMAX_DELAY))
+        { // Funcion para chequear que guarda los comandos
+            printf("Comando recibido en la cola: %s\n", cmd);
+            free(cmd);
+        }
     }
-    ESP_ERROR_CHECK(ret);
-    ESP_LOGI(TAG, "NVS initialized successfully");
+}
+
+void init_wifi(void)
+{
     esp_err_t err = wifi_init_from_flash();
     if (err != ESP_OK)
     {
@@ -141,7 +155,10 @@ void app_main(void)
         ESP_LOGI(TAG, "WiFi initialized from flash");
     }
     start_webserver();
+}
 
+void init_player(void)
+{
     // Inicializar mutex si lo necesitas en otras tareas
     player_state_mutex = xSemaphoreCreateMutex();
     if (player_state_mutex == NULL)
@@ -152,69 +169,46 @@ void app_main(void)
     ESP_ERROR_CHECK(logger_init());
     ESP_ERROR_CHECK(player_init(&player_cmd_queue));
 
-    // // Inicializar playlist (monta SPIFFS y carga lista)
-    // if (playlist_init() != ESP_OK) {
-    //     ESP_LOGE(TAG, "No se pudo iniciar playlist");
-    //     abort();
-    // }
-
-    // Inicializar player (crea la task de audio y la cola internamente)
-    // if (player_init(NULL) != ESP_OK) {
-    //     ESP_LOGE(TAG, "Error inicializando player");
-    //     abort();
-    // }
-
     // Crear tarea heartbeat (LED)
     xTaskCreate(heartbeat_task, "heartbeat_task", 2048, NULL, 2, NULL);
 
-    // Crear tarea touchpad
-
-    ESP_LOGI(TAG, "Sistema inicializado correctamente");
-
     delay_s(2);
     player_send_cmd(CMD_PLAY);
-
-    // delay_s(2);
-    // touch_init();
-    // xTaskCreate(touchpad_task, "touchpad_task", 2048, NULL, 3, NULL);
 }
 
-
-// Main para el MQTT, cambiar variables para usar las ya creadas
-
-#include "freertos/queue.h"
-
-#define TOPIC_EVENTO   "lab/iot/eventos"
-#define TOPIC_BUFFER   "lab/iot/buffer"
-#define QUEUE_LENGTH   10
-#define BUFFER_SIZE    5
-
-static QueueHandle_t eventos_queue;
-static int eventos_buffer[BUFFER_SIZE] = {10, 20, 30, 40, 50};
-
-static void eventos_task(void *pvParameters) {
-    char *cmd;
-    while (1) {
-        if (xQueueReceive(eventos_queue, &cmd, portMAX_DELAY)) { // Funcion para chequear que guarda los comandos
-            printf("Comando recibido en la cola: %s\n", cmd);
-            free(cmd);
-        }
-    }
-}
-
-void app_main(void) {
-    init_sta(); //conecta el wifi
-
+void init_mqtt(void)
+{
     eventos_queue = xQueueCreate(QUEUE_LENGTH, sizeof(char *)); // Crea la cola de eventos
-    if (eventos_queue == NULL) {
+    if (eventos_queue == NULL)
+    {
         printf("No se pudo crear la cola de eventos\n");
         return;
     }
 
-    almacenar_eventos(eventos_queue, TOPIC_EVENTO); // Almacena eventos en la cola
-    enviar_eventos_buffe(eventos_buffer, BUFFER_SIZE, TOPIC_BUFFER);   //envia datos del buffer
+    almacenar_eventos(eventos_queue, TOPIC_EVENTO);                  // Almacena eventos en la cola
+    enviar_eventos_buffe(eventos_buffer, BUFFER_SIZE, TOPIC_BUFFER); // envia datos del buffer
 
     connect_mqtt("mqtt://broker.hivemq.com", 1883, TOPIC_EVENTO); // Conecta al broker MQTT
 
     xTaskCreate(eventos_task, "eventos_task", 4096, NULL, 5, NULL); // Crea la tarea para manejar eventos
+}
+
+void app_main(void)
+{
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
+    {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
+    ESP_LOGI(TAG, "NVS initialized successfully");
+
+    init_wifi();
+
+    // delay_s(2);
+    // touch_init();
+    // xTaskCreate(touchpad_task, "touchpad_task", 2048, NULL, 3, NULL);
+
+    init_mqtt();
 }
