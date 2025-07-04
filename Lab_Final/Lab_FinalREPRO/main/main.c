@@ -13,6 +13,8 @@
 #include "wifi.h"
 #include "http.h"
 #include "nvs_flash.h"
+#include "comunicate_mqtt.h"   //MQTT
+
 
 static const char *TAG = "MAIN";
 
@@ -177,4 +179,44 @@ void app_main(void)
     // delay_s(2);
     // touch_init();
     // xTaskCreate(touchpad_task, "touchpad_task", 2048, NULL, 3, NULL);
+}
+
+
+// Main para el MQTT, cambiar variables para usar las ya creadas
+
+#include "freertos/queue.h"
+
+#define TOPIC_EVENTO   "lab/iot/eventos"
+#define TOPIC_BUFFER   "lab/iot/buffer"
+#define QUEUE_LENGTH   10
+#define BUFFER_SIZE    5
+
+static QueueHandle_t eventos_queue;
+static int eventos_buffer[BUFFER_SIZE] = {10, 20, 30, 40, 50};
+
+static void eventos_task(void *pvParameters) {
+    char *cmd;
+    while (1) {
+        if (xQueueReceive(eventos_queue, &cmd, portMAX_DELAY)) { // Funcion para chequear que guarda los comandos
+            printf("Comando recibido en la cola: %s\n", cmd);
+            free(cmd);
+        }
+    }
+}
+
+void app_main(void) {
+    init_sta(); //conecta el wifi
+
+    eventos_queue = xQueueCreate(QUEUE_LENGTH, sizeof(char *)); // Crea la cola de eventos
+    if (eventos_queue == NULL) {
+        printf("No se pudo crear la cola de eventos\n");
+        return;
+    }
+
+    almacenar_eventos(eventos_queue, TOPIC_EVENTO); // Almacena eventos en la cola
+    enviar_eventos_buffe(eventos_buffer, BUFFER_SIZE, TOPIC_BUFFER);   //envia datos del buffer
+
+    connect_mqtt("mqtt://broker.hivemq.com", 1883, TOPIC_EVENTO); // Conecta al broker MQTT
+
+    xTaskCreate(eventos_task, "eventos_task", 4096, NULL, 5, NULL); // Crea la tarea para manejar eventos
 }
