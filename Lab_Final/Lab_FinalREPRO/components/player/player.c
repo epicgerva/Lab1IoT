@@ -41,7 +41,7 @@ static esp_err_t es8311_codec_init(void)
 #endif
 
     /* Initialize es8311 codec */
-    es_handle = es8311_create(I2C_NUM, ES8311_ADDRRES_0); // ← usamos la variable global
+    es_handle = es8311_create(I2C_NUM, ES8311_ADDRRES_0); 
     ESP_RETURN_ON_FALSE(es_handle, ESP_FAIL, TAG, "es8311 create failed");
 
     const es8311_clock_config_t es_clk = {
@@ -128,7 +128,7 @@ static void audio_task(void *args)
                     {
                         stream_open = true;
                         is_playing = true;
-                        ESP_LOGI(TAG, "[audio_task] Playback started (streaming)");
+                        ESP_LOGI(TAG, "[audio_task] Inicio de reproducción");
                     }
                     else
                     {
@@ -139,7 +139,7 @@ static void audio_task(void *args)
             case CMD_PAUSE:
                 logger_add_event(LOG_EVENT_PAUSE);
                 is_playing = false;
-                ESP_LOGI(TAG, "[audio_task] Playback paused");
+                ESP_LOGI(TAG, "[audio_task] Pausa");
                 break;
             case CMD_STOP:
                 logger_add_event(LOG_EVENT_STOP);
@@ -148,7 +148,7 @@ static void audio_task(void *args)
                     stream_open = false;
                 }
                 is_playing = false;
-                ESP_LOGI(TAG, "[audio_task] Playback stopped");
+                ESP_LOGI(TAG, "[audio_task] Stop");
                 break;
             case CMD_NEXT:
                 logger_add_event(LOG_EVENT_NEXT);
@@ -159,20 +159,22 @@ static void audio_task(void *args)
                 
                 if (playlist_next() == ESP_OK)
                 {
+                    ESP_LOGI(TAG, "[audio_task] Siguiente canción: %s", playlist_get_current_song());
                     if (is_playing) {
                         if (playlist_open_current_stream() == ESP_OK) {
                             stream_open = true;
-                            ESP_LOGI(TAG, "[audio_task] Siguiente tema (auto-play)");
+                            ESP_LOGI(TAG, "[audio_task] Siguiente canción (auto-play)");
                         } else {
                             is_playing = false;
-                            ESP_LOGE(TAG, "No se pudo abrir stream del siguiente tema");
+                            ESP_LOGE(TAG, "No se pudo abrir stream de la siguiente canción");
                         }
+                    } else {
+                        ESP_LOGI(TAG, "[audio_task] Next song loaded but not auto-starting (not playing)");
                     }
-                    ESP_LOGI(TAG, "[audio_task] Siguiente tema");
                 }
                 else
                 {
-                    ESP_LOGE(TAG, "No se pudo avanzar al siguiente tema");
+                    ESP_LOGE(TAG, "No se pudo avanzar a la siguiente canción");
                     is_playing = false;
                 }
                 break;
@@ -185,20 +187,22 @@ static void audio_task(void *args)
                 
                 if (playlist_prev() == ESP_OK)
                 {
+                    ESP_LOGI(TAG, "[audio_task] Canción anterior: %s", playlist_get_current_song());
                     if (is_playing) {
                         if (playlist_open_current_stream() == ESP_OK) {
                             stream_open = true;
-                            ESP_LOGI(TAG, "[audio_task] Tema anterior (auto-play)");
+                            ESP_LOGI(TAG, "[audio_task] Canción anterior (auto-play)");
                         } else {
                             is_playing = false;
-                            ESP_LOGE(TAG, "No se pudo abrir stream del tema anterior");
+                            ESP_LOGE(TAG, "No se pudo abrir stream de la canción anterior");
                         }
+                    } else {
+                        ESP_LOGI(TAG, "[audio_task] Canción anterior cargada pero no se reproduce (no playing)");
                     }
-                    ESP_LOGI(TAG, "[audio_task] Tema anterior");
                 }
                 else
                 {
-                    ESP_LOGE(TAG, "No se pudo retroceder al tema anterior");
+                    ESP_LOGE(TAG, "No se pudo retroceder a la canción anterior");
                     is_playing = false;
                 }
                 break;
@@ -240,7 +244,6 @@ static void audio_task(void *args)
                 playlist_close_stream();
                 stream_open = false;
                 player_send_cmd(CMD_NEXT);
-                is_playing = false;
             }
             else
             {
