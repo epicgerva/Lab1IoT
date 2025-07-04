@@ -11,10 +11,11 @@
 #define TOUCH_NETWORK 11
 #define TOUCH_VOLUME_DOWN 3
 
-void touch_init(void);
 
 void touch_update(void);
 
 bool touch_pressed(uint8_t button);
+
+void init_touch(void);
 
 #endif

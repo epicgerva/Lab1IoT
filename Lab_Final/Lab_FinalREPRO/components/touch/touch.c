@@ -3,6 +3,7 @@
 #include "esp_rom_sys.h"
 #include "esp_task_wdt.h"
 #include "touch.h"
+#include "player.h"
 
 #define TOUCH_THRESHOLD 30000
 
@@ -101,4 +102,62 @@ bool touch_pressed(uint8_t button)
         ESP_LOGI(TAG, "Button %d is pressed", button);
     }
     return button_pressed[button - 1];
+}
+
+static void touchpad_task(void *args)
+{
+    while (1)
+    {
+        touch_update();
+
+        if (touch_pressed(TOUCH_VOLUME_UP))
+        {
+            ESP_LOGI(TAG, "Touch: VOLUME UP");
+            player_send_cmd(CMD_VOL_UP);
+        }
+        if (touch_pressed(TOUCH_VOLUME_DOWN))
+        {
+            ESP_LOGI(TAG, "Touch: VOLUME DOWN");
+            player_send_cmd(CMD_VOL_DOWN);
+        }
+        if (touch_pressed(TOUCH_PLAY_PAUSE))
+        {
+            static bool last_play = false;
+            if (!last_play)
+            {
+                ESP_LOGI(TAG, "Touch: PLAY");
+                player_send_cmd(CMD_PLAY);
+                last_play = true;
+            }
+            else
+            {
+                ESP_LOGI(TAG, "Touch: PAUSE");
+                player_send_cmd(CMD_PAUSE);
+                last_play = false;
+            }
+        }
+        if (touch_pressed(TOUCH_PHOTO))
+        {
+            ESP_LOGI(TAG, "Touch: PREV");
+            player_send_cmd(CMD_PREV);
+        }
+        if (touch_pressed(TOUCH_RECORD))
+        {
+            ESP_LOGI(TAG, "Touch: NEXT");
+            player_send_cmd(CMD_NEXT);
+        }
+        if (touch_pressed(TOUCH_NETWORK))
+        {
+            ESP_LOGI(TAG, "Touch: STOP");
+            player_send_cmd(CMD_STOP);
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+}
+
+void init_touch(void)
+{
+    touch_init();
+    xTaskCreate(touchpad_task, "touchpad_task", 2048, NULL, 3, NULL);
 }

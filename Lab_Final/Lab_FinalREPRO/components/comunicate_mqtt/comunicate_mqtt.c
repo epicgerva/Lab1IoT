@@ -9,6 +9,7 @@
 #include "freertos/queue.h"
 #include "freertos/task.h"
 #include "comunicate_mqtt.h"
+#include "player.h"
 
 static const char *TAG = "comunicate_mqtt";
 static esp_mqtt_client_handle_t global_client = NULL;
@@ -110,18 +111,22 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
                 publicar_siguiente_evento();
             } else if (
                 strcmp(data, "play") == 0 ||
-                strcmp(data, "pausa") == 0 ||
-                strcmp(data, "siguiente") == 0 ||
-                strcmp(data, "anterior") == 0 ||
-                strcmp(data, "detener") == 0) {
+                strcmp(data, "pause") == 0 ||
+                strcmp(data, "stop") == 0 ||
+                strcmp(data, "next") == 0 ||
+                strcmp(data, "prev") == 0 ||
+                strcmp(data, "volup") == 0 ||
+                strcmp(data, "voldown") == 0
+            ) {
 
                 if (eventos_queue) {
                     char *cmd = malloc(strlen(data) + 1);
                     strcpy(cmd, data);
                     xQueueSend(eventos_queue, &cmd, 0);
+                    ESP_LOGI(TAG, "Comando MQTT recibido: %s", data);
                 }
             } else {
-                ESP_LOGW(TAG, "Comando inválido recibido: %s", data);
+                ESP_LOGW(TAG, "Comando MQTT inválido recibido: %s", data);
             }
         }
         break;
@@ -179,4 +184,111 @@ void enviar_eventos_buffe(int *buffer, int buffer_size, const char *buffer_topic
     eventos_buffer = buffer;
     eventos_buffer_size = buffer_size;
     snprintf(buffer_topic, sizeof(buffer_topic), "%s", buffer_topic_param);
+}
+
+// Función para enviar mensajes de estado
+void enviar_estado_mqtt(const char *mensaje) {
+    if (global_client && strlen(eventos_topic) > 0) {
+        cJSON *json = cJSON_CreateObject();
+        cJSON_AddStringToObject(json, "estado", mensaje);
+        cJSON_AddStringToObject(json, "timestamp", "now");
+        int msg_id = publish_json_base64(eventos_topic, json);
+        if (msg_id != -1) {
+            ESP_LOGI(TAG, "Estado enviado: %s", mensaje);
+        } else {
+            ESP_LOGE(TAG, "Error enviando estado: %s", mensaje);
+        }
+        cJSON_Delete(json);
+    } else {
+        ESP_LOGW(TAG, "MQTT no conectado, no se puede enviar estado: %s", mensaje);
+    }
+}
+
+#define TOPIC_EVENTO "lab/iot/eventos"
+#define TOPIC_BUFFER "lab/iot/buffer"
+#define QUEUE_LENGTH 10
+#define BUFFER_SIZE 5
+
+static QueueHandle_t eventos_queue;
+static int default_eventos_buffer[BUFFER_SIZE] = {10, 20, 30, 40, 50};
+
+static void eventos_task(void *pvParameters)
+{
+    char *cmd;
+    while (1)
+    {
+        if (xQueueReceive(eventos_queue, &cmd, portMAX_DELAY))
+        { 
+            ESP_LOGI(TAG, "Comando MQTT recibido: %s", cmd);
+            
+            if (strcmp(cmd, "play") == 0) 
+            {
+                player_send_cmd(CMD_PLAY);
+                ESP_LOGI(TAG, "Ejecutando: PLAY");
+                enviar_estado_mqtt("Comando PLAY ejecutado");
+            } 
+            else if (strcmp(cmd, "pause") == 0 || strcmp(cmd, "pausa") == 0) 
+            {
+                player_send_cmd(CMD_PAUSE);
+                ESP_LOGI(TAG, "Ejecutando: PAUSE");
+                enviar_estado_mqtt("Comando PAUSE ejecutado");
+            }
+            else if (strcmp(cmd, "stop") == 0 || strcmp(cmd, "detener") == 0) 
+            {
+                player_send_cmd(CMD_STOP);
+                ESP_LOGI(TAG, "Ejecutando: STOP");
+                enviar_estado_mqtt("Comando STOP ejecutado");
+            }
+            else if (strcmp(cmd, "next") == 0 || strcmp(cmd, "siguiente") == 0) 
+            {
+                player_send_cmd(CMD_NEXT);
+                ESP_LOGI(TAG, "Ejecutando: NEXT");
+                enviar_estado_mqtt("Comando NEXT ejecutado");
+            }
+            else if (strcmp(cmd, "prev") == 0 || strcmp(cmd, "anterior") == 0) 
+            {
+                player_send_cmd(CMD_PREV);
+                ESP_LOGI(TAG, "Ejecutando: PREV");
+                enviar_estado_mqtt("Comando PREV ejecutado");
+            }
+            else if (strcmp(cmd, "volup") == 0) 
+            {
+                player_send_cmd(CMD_VOL_UP);
+                ESP_LOGI(TAG, "Ejecutando: VOLUME UP");
+                enviar_estado_mqtt("Comando VOLUME UP ejecutado");
+            }
+            else if (strcmp(cmd, "voldown") == 0) 
+            {
+                player_send_cmd(CMD_VOL_DOWN);
+                ESP_LOGI(TAG, "Ejecutando: VOLUME DOWN");
+                enviar_estado_mqtt("Comando VOLUME DOWN ejecutado");
+            }
+            else 
+            {
+                ESP_LOGW(TAG, "Comando desconocido: %s", cmd);
+                char error_msg[64];
+                snprintf(error_msg, sizeof(error_msg), "Comando desconocido: %s", cmd);
+                enviar_estado_mqtt(error_msg);
+            }
+            
+            free(cmd);
+        }
+    }
+}
+
+void init_mqtt(void)
+{
+    eventos_queue = xQueueCreate(QUEUE_LENGTH, sizeof(char *)); // Crea la cola de eventos
+    if (eventos_queue == NULL)
+    {
+        printf("No se pudo crear la cola de eventos\n");
+        return;
+    }
+
+    almacenar_eventos(eventos_queue, TOPIC_EVENTO);                  // Almacena eventos en la cola
+    enviar_eventos_buffe(default_eventos_buffer, BUFFER_SIZE, TOPIC_BUFFER); // envia datos del buffer
+
+    connect_mqtt("mqtt://broker.hivemq.com", 1883, TOPIC_EVENTO); // Conecta al broker MQTT
+
+    xTaskCreate(eventos_task, "eventos_task", 4096, NULL, 5, NULL); // Crea la tarea para manejar eventos
 }

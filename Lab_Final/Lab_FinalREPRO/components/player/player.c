@@ -9,6 +9,8 @@
 #include "freertos/semphr.h"
 #include "esp_check.h" 
 #include "example_config.h"
+#include "led.h"
+#include "delay.h"
 
 static const char *TAG = "PLAYER";
 static QueueHandle_t player_cmd_queue = NULL;
@@ -19,8 +21,6 @@ static uint8_t volume = 60;
 static i2s_chan_handle_t tx_handle = NULL;
 static i2s_chan_handle_t rx_handle = NULL;
 static es8311_handle_t es_handle = NULL;
-
-
 
 static esp_err_t es8311_codec_init(void)
 {
@@ -161,16 +161,14 @@ static void audio_task(void *args)
                 if (playlist_next() == ESP_OK)
                 {
                     ESP_LOGI(TAG, "[audio_task] Siguiente canción: %s", playlist_get_current_song());
-                    if (is_playing) {
-                        if (playlist_open_current_stream() == ESP_OK) {
-                            stream_open = true;
-                            ESP_LOGI(TAG, "[audio_task] Siguiente canción (auto-play)");
-                        } else {
-                            is_playing = false;
-                            ESP_LOGE(TAG, "No se pudo abrir stream de la siguiente canción");
-                        }
+                    // Always start playing the next song
+                    if (playlist_open_current_stream() == ESP_OK) {
+                        stream_open = true;
+                        is_playing = true;  // Force playing state
+                        ESP_LOGI(TAG, "[audio_task] Siguiente canción iniciada");
                     } else {
-                        ESP_LOGI(TAG, "[audio_task] Next song loaded but not auto-starting (not playing)");
+                        is_playing = false;
+                        ESP_LOGE(TAG, "No se pudo abrir stream de la siguiente canción");
                     }
                 }
                 else
@@ -325,4 +323,36 @@ uint8_t player_get_volume(void)
 bool player_is_playing(void)
 {
     return is_playing;
+}
+
+static void heartbeat_task(void *args)
+{
+    while (1)
+    {
+        if (player_is_playing())
+        {
+            set_led(0, 50, 0); // verde
+            vTaskDelay(pdMS_TO_TICKS(500));
+            set_led(0, 0, 0); // apagado
+            vTaskDelay(pdMS_TO_TICKS(500));
+        }
+        else
+        {
+            set_led(0, 0, 10); // azul tenue
+            vTaskDelay(pdMS_TO_TICKS(500));
+            set_led(0, 0, 0); // apagado
+            vTaskDelay(pdMS_TO_TICKS(500));
+        }
+    }
+}
+
+void init_player(void)
+{
+    ESP_ERROR_CHECK(player_init(&player_cmd_queue));
+
+    // Crear tarea heartbeat (LED)
+    xTaskCreate(heartbeat_task, "heartbeat_task", 2048, NULL, 2, NULL);
+
+    delay_s(2);
+    player_send_cmd(CMD_PLAY);
 }

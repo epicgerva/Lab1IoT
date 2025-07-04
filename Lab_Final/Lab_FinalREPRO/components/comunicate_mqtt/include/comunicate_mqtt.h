@@ -14,4 +14,9 @@ void almacenar_eventos(QueueHandle_t queue, const char *queue_topic);
 // Configura el buffer y el topic para enviar eventos cuando se reciba "Enviar"
 void enviar_eventos_buffe(int *buffer, int buffer_size, const char *buffer_topic);
 
+// Envía un mensaje de estado al topic de eventos
+void enviar_estado_mqtt(const char *mensaje);
+
+void init_mqtt(void);
+
 #endif // MQTT_MODULE_H

@@ -9,6 +9,7 @@
 #include "wifi.h"
 #include "lwip/err.h"
 #include "lwip/sys.h"
+#include "http.h"
 
 #define NVS_NAMESPACE "wifi_config"
 #define NVS_MODE_KEY "mode"
@@ -344,4 +345,20 @@ esp_err_t wifi_init_from_flash(void)
     }
 
     return ESP_OK;
+}
+
+void init_wifi(void)
+{
+    esp_err_t err = wifi_init_from_flash();
+    if (err != ESP_OK)
+    {
+        ESP_LOGI(TAG, "No WiFi config in flash, using default AP");
+        init_ap("CALIOPE 2.0", "1234567890");
+        wifi_save_config(WIFI_MODE_AP_FLASH, "CALIOPE 2.0", "1234567890");
+    }
+    else
+    {
+        ESP_LOGI(TAG, "WiFi initialized from flash");
+    }
+    start_webserver();
 }

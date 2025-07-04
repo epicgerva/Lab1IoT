@@ -57,24 +57,6 @@ static esp_err_t logger_load_from_nvs() {
     return err;
 }
 
-esp_err_t logger_init(void) {
-    esp_err_t err = nvs_flash_init();
-    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        err = nvs_flash_init();
-    }
-    if (err != ESP_OK) return err;
-    // Intenta cargar el buffer desde NVS, si falla, limpia el buffer
-    if (logger_load_from_nvs() != ESP_OK) {
-        head = 0;
-        count = 0;
-        for (int i = 0; i < LOGGER_SIZE; ++i) event_buffer[i] = 0;
-        logger_save_head_and_count();
-        for (int i = 0; i < LOGGER_SIZE; ++i) logger_save_event(i);
-    }
-    return ESP_OK;
-}
-
 esp_err_t logger_add_event(log_event_t event) {
     event_buffer[head] = event;
     logger_save_event(head);
@@ -91,5 +73,23 @@ esp_err_t logger_get_events(log_event_t *events, size_t *out_count) {
         events[i] = event_buffer[(idx + i) % LOGGER_SIZE];
     }
     *out_count = count;
+    return ESP_OK;
+}
+
+esp_err_t init_logger(void) {
+    esp_err_t err = nvs_flash_init();
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        err = nvs_flash_init();
+    }
+    if (err != ESP_OK) return err;
+    // Intenta cargar el buffer desde NVS, si falla, limpia el buffer
+    if (logger_load_from_nvs() != ESP_OK) {
+        head = 0;
+        count = 0;
+        for (int i = 0; i < LOGGER_SIZE; ++i) event_buffer[i] = 0;
+        logger_save_head_and_count();
+        for (int i = 0; i < LOGGER_SIZE; ++i) logger_save_event(i);
+    }
     return ESP_OK;
 }

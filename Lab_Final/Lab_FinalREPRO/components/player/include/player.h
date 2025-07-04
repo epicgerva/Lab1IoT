@@ -14,8 +14,8 @@ typedef enum {
     CMD_VOL_DOWN
 } player_cmd_t;
 
-esp_err_t player_init(QueueHandle_t *cmd_queue_out);
 void player_send_cmd(player_cmd_t cmd);
 void player_set_volume(uint8_t vol);
 uint8_t player_get_volume(void);
 bool player_is_playing(void);
+void init_player(void);
