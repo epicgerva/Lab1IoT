@@ -10,6 +10,14 @@
 #include "freertos/task.h"
 #include "comunicate_mqtt.h"
 #include "player.h"
+#include "nvs_flash.h"
+#include "nvs.h"
+
+#define NVS_NAMESPACE_MQTT "mqtt_config"
+#define NVS_BROKER_KEY "broker"
+#define NVS_PUERTO_KEY "puerto"
+#define NVS_TOPIC_EVENTO_KEY "topic_evento"
+#define NVS_TOPIC_BUFFER_KEY "topic_buffer"
 
 static const char *TAG = "comunicate_mqtt";
 static esp_mqtt_client_handle_t global_client = NULL;
@@ -146,7 +154,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 }
 
 // Función para conectar al broker MQTT
-void connect_mqtt(const char *uri, int puerto, const char *topic_evento) {
+void connect_mqtt(const char *uri, int32_t puerto, const char *topic_evento) {
     snprintf(eventos_topic, sizeof(eventos_topic), "%s", topic_evento);
 
     cJSON *lwt_json = cJSON_CreateObject();
@@ -278,17 +286,217 @@ static void eventos_task(void *pvParameters)
 
 void init_mqtt(void)
 {
-    eventos_queue = xQueueCreate(QUEUE_LENGTH, sizeof(char *)); // Crea la cola de eventos
-    if (eventos_queue == NULL)
+    esp_err_t err = mqtt_init_from_flash();
+    if (err != ESP_OK)
     {
-        printf("No se pudo crear la cola de eventos\n");
-        return;
+        ESP_LOGI(TAG, "No hay configuración MQTT en flash, usando valores por defecto");
+        
+        // Usar valores por defecto
+        eventos_queue = xQueueCreate(QUEUE_LENGTH, sizeof(char *));
+        if (eventos_queue == NULL)
+        {
+            printf("No se pudo crear la cola de eventos\n");
+            return;
+        }
+
+        almacenar_eventos(eventos_queue, TOPIC_EVENTO);
+        enviar_eventos_buffe(default_eventos_buffer, BUFFER_SIZE, TOPIC_BUFFER);
+        connect_mqtt("mqtt://broker.hivemq.com", 1883, TOPIC_EVENTO);
+        xTaskCreate(eventos_task, "eventos_task", 4096, NULL, 5, NULL);
+        
+        // Guardar configuración por defecto
+        mqtt_config_t default_config;
+        strcpy(default_config.broker, "mqtt://broker.hivemq.com");
+        default_config.puerto = 1883;
+        strcpy(default_config.topic_evento, TOPIC_EVENTO);
+        strcpy(default_config.topic_buffer, TOPIC_BUFFER);
+        mqtt_save_config(&default_config);
+    }
+    else
+    {
+        ESP_LOGI(TAG, "MQTT inicializado desde configuración flash");
+    }
+}
+
+// Funciones de configuración MQTT
+esp_err_t mqtt_save_config(const mqtt_config_t *config)
+{
+    nvs_handle_t nvs_handle;
+    esp_err_t err;
+
+    ESP_LOGI(TAG, "Guardando configuración MQTT: broker=%s, puerto=%d", config->broker, (int)config->puerto);
+
+    err = nvs_open(NVS_NAMESPACE_MQTT, NVS_READWRITE, &nvs_handle);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Error abriendo NVS handle: %s", esp_err_to_name(err));
+        return err;
     }
 
-    almacenar_eventos(eventos_queue, TOPIC_EVENTO);                  // Almacena eventos en la cola
-    enviar_eventos_buffe(default_eventos_buffer, BUFFER_SIZE, TOPIC_BUFFER); // envia datos del buffer
+    // Guardar broker
+    err = nvs_set_str(nvs_handle, NVS_BROKER_KEY, config->broker);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Error guardando broker: %s", esp_err_to_name(err));
+        nvs_close(nvs_handle);
+        return err;
+    }
 
-    connect_mqtt("mqtt://broker.hivemq.com", 1883, TOPIC_EVENTO); // Conecta al broker MQTT
+    // Guardar puerto
+    err = nvs_set_i32(nvs_handle, NVS_PUERTO_KEY, config->puerto);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Error guardando puerto: %s", esp_err_to_name(err));
+        nvs_close(nvs_handle);
+        return err;
+    }
 
-    xTaskCreate(eventos_task, "eventos_task", 4096, NULL, 5, NULL); // Crea la tarea para manejar eventos
+    // Guardar topic_evento
+    err = nvs_set_str(nvs_handle, NVS_TOPIC_EVENTO_KEY, config->topic_evento);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Error guardando topic_evento: %s", esp_err_to_name(err));
+        nvs_close(nvs_handle);
+        return err;
+    }
+
+    // Guardar topic_buffer
+    err = nvs_set_str(nvs_handle, NVS_TOPIC_BUFFER_KEY, config->topic_buffer);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Error guardando topic_buffer: %s", esp_err_to_name(err));
+        nvs_close(nvs_handle);
+        return err;
+    }
+
+    // Confirmar cambios
+    err = nvs_commit(nvs_handle);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Error confirmando en NVS: %s", esp_err_to_name(err));
+    }
+    else
+    {
+        ESP_LOGI(TAG, "Configuración MQTT guardada exitosamente");
+    }
+
+    nvs_close(nvs_handle);
+    return err;
+}
+
+esp_err_t mqtt_load_config(mqtt_config_t *config)
+{
+    nvs_handle_t nvs_handle;
+    esp_err_t err;
+    size_t required_size;
+
+    err = nvs_open(NVS_NAMESPACE_MQTT, NVS_READONLY, &nvs_handle);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Error abriendo NVS handle: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    // Cargar broker
+    required_size = sizeof(config->broker);
+    err = nvs_get_str(nvs_handle, NVS_BROKER_KEY, config->broker, &required_size);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Error cargando broker: %s", esp_err_to_name(err));
+        nvs_close(nvs_handle);
+        return err;
+    }
+
+    // Cargar puerto
+    err = nvs_get_i32(nvs_handle, NVS_PUERTO_KEY, &config->puerto);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Error cargando puerto: %s", esp_err_to_name(err));
+        nvs_close(nvs_handle);
+        return err;
+    }
+
+    // Cargar topic_evento
+    required_size = sizeof(config->topic_evento);
+    err = nvs_get_str(nvs_handle, NVS_TOPIC_EVENTO_KEY, config->topic_evento, &required_size);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Error cargando topic_evento: %s", esp_err_to_name(err));
+        nvs_close(nvs_handle);
+        return err;
+    }
+
+    // Cargar topic_buffer
+    required_size = sizeof(config->topic_buffer);
+    err = nvs_get_str(nvs_handle, NVS_TOPIC_BUFFER_KEY, config->topic_buffer, &required_size);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Error cargando topic_buffer: %s", esp_err_to_name(err));
+        nvs_close(nvs_handle);
+        return err;
+    }
+
+    ESP_LOGI(TAG, "Configuración MQTT cargada: broker=%s, puerto=%d", config->broker, (int)config->puerto);
+    nvs_close(nvs_handle);
+    return ESP_OK;
+}
+
+esp_err_t mqtt_clear_config(void)
+{
+    nvs_handle_t nvs_handle;
+    esp_err_t err;
+
+    ESP_LOGI(TAG, "Limpiando configuración MQTT de flash");
+
+    err = nvs_open(NVS_NAMESPACE_MQTT, NVS_READWRITE, &nvs_handle);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Error abriendo NVS handle: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    err = nvs_erase_all(nvs_handle);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Error borrando namespace NVS: %s", esp_err_to_name(err));
+    }
+    else
+    {
+        ESP_LOGI(TAG, "Configuración MQTT limpiada exitosamente");
+        err = nvs_commit(nvs_handle);
+    }
+
+    nvs_close(nvs_handle);
+    return err;
+}
+
+esp_err_t mqtt_init_from_flash(void)
+{
+    mqtt_config_t config;
+    esp_err_t err;
+
+    ESP_LOGI(TAG, "Intentando inicializar MQTT desde configuración flash");
+
+    err = mqtt_load_config(&config);
+    if (err != ESP_OK)
+    {
+        ESP_LOGW(TAG, "No se encontró configuración MQTT en flash o error cargando: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    // Usar la configuración cargada desde flash
+    eventos_queue = xQueueCreate(QUEUE_LENGTH, sizeof(char *));
+    if (eventos_queue == NULL)
+    {
+        ESP_LOGE(TAG, "No se pudo crear la cola de eventos");
+        return ESP_FAIL;
+    }
+
+    almacenar_eventos(eventos_queue, config.topic_evento);
+    enviar_eventos_buffe(default_eventos_buffer, BUFFER_SIZE, config.topic_buffer);
+    connect_mqtt(config.broker, config.puerto, config.topic_evento);
+    xTaskCreate(eventos_task, "eventos_task", 4096, NULL, 5, NULL);
+
+    ESP_LOGI(TAG, "MQTT inicializado desde flash: %s:%d", config.broker, (int)config.puerto);
+    return ESP_OK;
 }

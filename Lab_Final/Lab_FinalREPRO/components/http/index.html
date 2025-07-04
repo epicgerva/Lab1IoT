@@ -132,24 +132,59 @@
             id="password2"
             name="password"
             required
-            placeholder="Contrase&ntilde;a"
+            placeholder="Contrase&oacute;a"
             maxlength="32"
           />
           <input type="submit" value="Activar AP" class="submit-button" />
         </div>
       </form>
     </div>
+    <hr />
+    <div class="container">
+      <form action="/mqtt" method="POST">
+        <label for="data">Configuraci&oacute;n MQTT:</label>
+        <div class="form-pill">
+          <input
+            type="text"
+            id="broker"
+            name="broker"
+            required
+            placeholder="Broker MQTT (ej: mqtt://broker.hivemq.com)"
+            maxlength="128"
+            style="width: 300px;"
+          />
+          <input
+            type="number"
+            id="puerto"
+            name="puerto"
+            required
+            placeholder="Puerto (ej: 1883)"
+            min="1"
+            max="65535"
+          />
+          <input type="submit" value="Configurar" class="submit-button" />
+        </div>
+        <div class="form-pill" style="margin-top: 10px;">
+          <input
+            type="text"
+            id="topic_evento"
+            name="topic_evento"
+            required
+            placeholder="Topic Eventos (ej: lab/iot/eventos)"
+            maxlength="64"
+          />
+          <input
+            type="text"
+            id="topic_buffer"
+            name="topic_buffer"
+            required
+            placeholder="Topic Buffer (ej: lab/iot/buffer)"
+            maxlength="64"
+          />
+          <input type="submit" value="Configurar" class="submit-button" style="display: none;" />
+        </div>
+      </form>
+    </div>
     <script src="script.js"></script>
-    <svg class="filter" xmlns="http://www.w3.org/2000/svg">
-      <filter id="noise">
-        <feTurbulence baseFrequency="0.185" />
-        <feColorMatrix
-          values="0 0 0 9 -5
-                               0 0 0 9 -4
-                              0 0 0 9 -5
-                               0 0 0 0 1"
-        />
-      </filter>
-    </svg>
   </body>
 </html>

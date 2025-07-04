@@ -1,3 +1,3 @@
 idf_component_register(SRCS "comunicate_mqtt.c"
                     INCLUDE_DIRS "include"
-                    REQUIRES mbedtls mqtt player)
+                    REQUIRES mbedtls mqtt player nvs_flash)

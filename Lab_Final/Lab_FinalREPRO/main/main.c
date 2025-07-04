@@ -7,6 +7,7 @@
 #include "wifi.h"
 #include "nvs_flash.h"
 #include "comunicate_mqtt.h"
+#include "http.h"
 
 static const char *TAG = "MAIN";
 
