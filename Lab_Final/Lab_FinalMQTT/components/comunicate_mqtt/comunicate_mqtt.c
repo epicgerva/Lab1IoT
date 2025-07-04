@@ -168,7 +168,6 @@ void connect_mqtt(const char *uri, int puerto, const char *topic_evento) {
         .session.last_will.msg = (const char *)lwt_base64,
         .session.last_will.qos = 1,
         .session.last_will.retain = 0,
-        .network.keepalive = 30,
     };
 
     esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtt_cfg);
