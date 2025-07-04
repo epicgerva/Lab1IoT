@@ -105,25 +105,13 @@ static void audio_task(void *args)
 {
     player_cmd_t cmd;
     size_t bytes_written = 0;
-    uint8_t *data_ptr = NULL;
-    uint8_t *song_start = NULL;
-    uint8_t *song_end = NULL;
-    size_t music_len = 0;
-
-    // Cargar la canción actual al iniciar
-    if (playlist_get_current(&song_start, &song_end) == ESP_OK)
-    {
-        data_ptr = song_start;
-        music_len = song_end - song_start;
-    }
-    else
-    {
-        ESP_LOGE(TAG, "No se pudo cargar la canción inicial");
-    }
+    uint8_t audio_buffer[PLAYLIST_CHUNK_SIZE];
+    size_t bytes_read = 0;
+    bool stream_open = false;
 
     while (1)
     {
-        if (xQueueReceive(player_cmd_queue, &cmd, portMAX_DELAY))
+        if (xQueueReceive(player_cmd_queue, &cmd, pdMS_TO_TICKS(10)))
         {
             switch (cmd)
             {
@@ -131,61 +119,87 @@ static void audio_task(void *args)
                 logger_add_event(LOG_EVENT_PLAY);
                 if (!is_playing)
                 {
-                    if (playlist_get_current(&song_start, &song_end) == ESP_OK)
+                    if (stream_open) {
+                        playlist_close_stream();
+                        stream_open = false;
+                    }
+                    
+                    if (playlist_open_current_stream() == ESP_OK)
                     {
-                        data_ptr = song_start;
-                        music_len = song_end - song_start;
-                        i2s_channel_disable(tx_handle);
-                        i2s_channel_preload_data(tx_handle, data_ptr, music_len, &bytes_written);
-                        data_ptr += bytes_written;
-                        i2s_channel_enable(tx_handle);
+                        stream_open = true;
                         is_playing = true;
-                        ESP_LOGI(TAG, "[audio_task] Playback started");
+                        ESP_LOGI(TAG, "[audio_task] Playback started (streaming)");
                     }
                     else
                     {
-                        ESP_LOGE(TAG, "No se pudo cargar la canción para reproducir");
+                        ESP_LOGE(TAG, "No se pudo abrir stream para reproducir");
                     }
                 }
                 break;
             case CMD_PAUSE:
                 logger_add_event(LOG_EVENT_PAUSE);
-                i2s_channel_disable(tx_handle);
                 is_playing = false;
                 ESP_LOGI(TAG, "[audio_task] Playback paused");
                 break;
             case CMD_STOP:
                 logger_add_event(LOG_EVENT_STOP);
-                i2s_channel_disable(tx_handle);
-                data_ptr = song_start;
+                if (stream_open) {
+                    playlist_close_stream();
+                    stream_open = false;
+                }
                 is_playing = false;
                 ESP_LOGI(TAG, "[audio_task] Playback stopped");
                 break;
             case CMD_NEXT:
                 logger_add_event(LOG_EVENT_NEXT);
-                if (playlist_next() == ESP_OK && playlist_get_current(&song_start, &song_end) == ESP_OK)
+                if (stream_open) {
+                    playlist_close_stream();
+                    stream_open = false;
+                }
+                
+                if (playlist_next() == ESP_OK)
                 {
-                    data_ptr = song_start;
-                    music_len = song_end - song_start;
-                    is_playing = true; // <-- ¡Esto es clave!
+                    if (is_playing) {
+                        if (playlist_open_current_stream() == ESP_OK) {
+                            stream_open = true;
+                            ESP_LOGI(TAG, "[audio_task] Siguiente tema (auto-play)");
+                        } else {
+                            is_playing = false;
+                            ESP_LOGE(TAG, "No se pudo abrir stream del siguiente tema");
+                        }
+                    }
                     ESP_LOGI(TAG, "[audio_task] Siguiente tema");
                 }
                 else
                 {
                     ESP_LOGE(TAG, "No se pudo avanzar al siguiente tema");
+                    is_playing = false;
                 }
                 break;
             case CMD_PREV:
                 logger_add_event(LOG_EVENT_PREV);
-                if (playlist_prev() == ESP_OK && playlist_get_current(&song_start, &song_end) == ESP_OK)
+                if (stream_open) {
+                    playlist_close_stream();
+                    stream_open = false;
+                }
+                
+                if (playlist_prev() == ESP_OK)
                 {
-                    data_ptr = song_start;
-                    music_len = song_end - song_start;
+                    if (is_playing) {
+                        if (playlist_open_current_stream() == ESP_OK) {
+                            stream_open = true;
+                            ESP_LOGI(TAG, "[audio_task] Tema anterior (auto-play)");
+                        } else {
+                            is_playing = false;
+                            ESP_LOGE(TAG, "No se pudo abrir stream del tema anterior");
+                        }
+                    }
                     ESP_LOGI(TAG, "[audio_task] Tema anterior");
                 }
                 else
                 {
                     ESP_LOGE(TAG, "No se pudo retroceder al tema anterior");
+                    is_playing = false;
                 }
                 break;
             case CMD_VOL_UP:
@@ -206,32 +220,41 @@ static void audio_task(void *args)
                 break;
             }
         }
-        if (is_playing && data_ptr && song_end)
+        
+        if (is_playing && stream_open)
         {
-            size_t bytes_to_write = song_end - data_ptr;
-            if (bytes_to_write == 0)
+            esp_err_t read_result = playlist_read_chunk(audio_buffer, PLAYLIST_CHUNK_SIZE, &bytes_read);
+            if (read_result == ESP_OK && bytes_read > 0)
             {
-                // Fin de canción detectado: manda el comando CMD_NEXT
-                ESP_LOGI(TAG, "[audio_task] Fin de canción, enviando CMD_NEXT");
-                player_send_cmd(CMD_NEXT);
-                is_playing = false; // Detén la reproducción hasta que llegue el siguiente comando
-                vTaskDelay(pdMS_TO_TICKS(200));
-                continue;
+                esp_err_t ret = i2s_channel_write(tx_handle, audio_buffer, bytes_read, &bytes_written, portMAX_DELAY);
+                if (ret != ESP_OK)
+                {
+                    ESP_LOGE(TAG, "[audio_task] i2s write error: %s", esp_err_to_name(ret));
+                    is_playing = false;
+                }
             }
-            size_t chunk = bytes_to_write > 1024 ? 1024 : bytes_to_write;
-            esp_err_t ret = i2s_channel_write(tx_handle, data_ptr, chunk, &bytes_written, portMAX_DELAY);
-            if (ret == ESP_OK)
+            else if (read_result == ESP_OK && bytes_read == 0)
             {
-                data_ptr += bytes_written;
+                // Llegamos al final de la canción, cerramos el stream y enviamos el comando para avanzar a la siguiente canción
+                ESP_LOGI(TAG, "[audio_task] Fin de canción, enviando CMD_NEXT");
+                playlist_close_stream();
+                stream_open = false;
+                player_send_cmd(CMD_NEXT);
+                is_playing = false;
             }
             else
             {
-                ESP_LOGE(TAG, "[audio_task] i2s write error");
+                ESP_LOGE(TAG, "[audio_task] Error leyendo chunk del stream: %s", esp_err_to_name(read_result));
                 is_playing = false;
+                if (stream_open) {
+                    playlist_close_stream();
+                    stream_open = false;
+                }
             }
         }
-        else
+        else if (!is_playing)
         {
+            // No estamos reproduciendo, esperamos un tiempo más largo
             vTaskDelay(pdMS_TO_TICKS(100));
         }
     }
@@ -240,7 +263,6 @@ static void audio_task(void *args)
 
 esp_err_t player_init(QueueHandle_t *cmd_queue_out)
 {
-    // Bypass audio hardware for testing
     if (i2s_driver_init() != ESP_OK)
     {
         ESP_LOGE(TAG, "i2s driver init failed");

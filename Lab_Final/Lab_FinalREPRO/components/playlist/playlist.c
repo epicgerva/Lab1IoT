@@ -6,15 +6,15 @@
 #include <stdlib.h>
 
 static const char *TAG = "PLAYLIST";
-
 static song_t playlist[PLAYLIST_MAX_SONGS];
 static int playlist_count = 0;
 static int current_index = 0;
-
 static const char *playlist_path = "/spiffs/playlist.txt";
-
 static uint8_t *current_song_buffer = NULL;
 static size_t current_song_size = 0;
+static FILE *current_stream_file = NULL;
+static long current_stream_size = 0;
+static long current_stream_position = 0;
 
 esp_err_t playlist_init(void)
 {
@@ -32,7 +32,6 @@ esp_err_t playlist_init(void)
         return ret;
     }
 
-    // Load playlist file
     FILE *f = fopen(playlist_path, "r");
     if (!f) {
         ESP_LOGW(TAG, "Playlist file not found, starting empty");
@@ -77,6 +76,9 @@ esp_err_t playlist_set_index(int index)
     if (index < 0 || index >= playlist_count) {
         return ESP_ERR_INVALID_ARG;
     }
+    
+    playlist_close_stream();
+    
     current_index = index;
     return ESP_OK;
 }
@@ -84,6 +86,9 @@ esp_err_t playlist_set_index(int index)
 esp_err_t playlist_next(void)
 {
     if (playlist_count == 0) return ESP_FAIL;
+    
+    playlist_close_stream();
+    
     current_index = (current_index + 1) % playlist_count;
     return ESP_OK;
 }
@@ -91,6 +96,9 @@ esp_err_t playlist_next(void)
 esp_err_t playlist_prev(void)
 {
     if (playlist_count == 0) return ESP_FAIL;
+    
+    playlist_close_stream();
+    
     current_index--;
     if (current_index < 0) current_index = playlist_count - 1;
     return ESP_OK;
@@ -137,61 +145,97 @@ esp_err_t playlist_remove_song(int index)
     return playlist_save();
 }
 
-esp_err_t playlist_get_current(uint8_t **start, uint8_t **end)
+esp_err_t playlist_open_current_stream(void)
 {
     if (playlist_count == 0 || current_index < 0 || current_index >= playlist_count) {
+        ESP_LOGE(TAG, "No hay canción válida para abrir stream");
         return ESP_FAIL;
     }
 
-    // Liberar buffer anterior si existe
-    if (current_song_buffer) {
-        free(current_song_buffer);
-        current_song_buffer = NULL;
-        current_song_size = 0;
+    if (current_stream_file) {
+        playlist_close_stream();
     }
 
-    // Construir ruta completa del archivo
     char filepath[128];
     snprintf(filepath, sizeof(filepath), "/spiffs/%s", playlist[current_index].filename);
 
-    FILE *f = fopen(filepath, "rb");
-    if (!f) {
-        ESP_LOGE(TAG, "No se pudo abrir el archivo: %s", filepath);
+    current_stream_file = fopen(filepath, "rb");
+    if (!current_stream_file) {
+        ESP_LOGE(TAG, "No se pudo abrir archivo para streaming: %s", filepath);
         return ESP_FAIL;
     }
 
-    // Obtener tamaño del archivo
-    fseek(f, 0, SEEK_END);
-    long filesize = ftell(f);
-    fseek(f, 0, SEEK_SET);
+    fseek(current_stream_file, 0, SEEK_END);
+    current_stream_size = ftell(current_stream_file);
+    fseek(current_stream_file, 0, SEEK_SET);
+    current_stream_position = 0;
 
-    if (filesize <= 0) {
-        fclose(f);
+    if (current_stream_size <= 0) {
+        fclose(current_stream_file);
+        current_stream_file = NULL;
         ESP_LOGE(TAG, "Archivo vacío o error de tamaño: %s", filepath);
         return ESP_FAIL;
     }
 
-    // Reservar memoria y leer archivo
-    current_song_buffer = malloc(filesize);
-    if (!current_song_buffer) {
-        fclose(f);
-        ESP_LOGE(TAG, "No hay memoria para cargar la canción");
-        return ESP_ERR_NO_MEM;
+    ESP_LOGI(TAG, "Stream abierto: %s (%ld bytes)", filepath, current_stream_size);
+    return ESP_OK;
+}
+
+esp_err_t playlist_read_chunk(uint8_t *buffer, size_t buffer_size, size_t *bytes_read)
+{
+    if (!current_stream_file || !buffer || !bytes_read) {
+        return ESP_ERR_INVALID_ARG;
     }
 
-    size_t read = fread(current_song_buffer, 1, filesize, f);
-    fclose(f);
+    *bytes_read = fread(buffer, 1, buffer_size, current_stream_file);
+    current_stream_position += *bytes_read;
 
-    if (read != filesize) {
-        free(current_song_buffer);
-        current_song_buffer = NULL;
-        ESP_LOGE(TAG, "Error leyendo archivo: %s", filepath);
+    if (*bytes_read == 0) {
+        if (feof(current_stream_file)) {
+            ESP_LOGI(TAG, "Fin del stream alcanzado");
+            return ESP_OK;
+        } else {
+            ESP_LOGE(TAG, "Error leyendo del stream");
+            return ESP_FAIL;
+        }
+    }
+
+    return ESP_OK;
+}
+
+esp_err_t playlist_close_stream(void)
+{
+    if (current_stream_file) {
+        fclose(current_stream_file);
+        current_stream_file = NULL;
+        current_stream_size = 0;
+        current_stream_position = 0;
+        ESP_LOGI(TAG, "Stream cerrado");
+    }
+    return ESP_OK;
+}
+
+esp_err_t playlist_seek_stream(long offset)
+{
+    if (!current_stream_file) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    if (fseek(current_stream_file, offset, SEEK_SET) != 0) {
+        ESP_LOGE(TAG, "Error en seek del stream");
         return ESP_FAIL;
     }
 
-    current_song_size = filesize;
-    *start = current_song_buffer;
-    *end = current_song_buffer + current_song_size;
-    ESP_LOGI(TAG, "Canción cargada: %s (%ld bytes)", filepath, filesize);
+    current_stream_position = offset;
     return ESP_OK;
+}
+
+long playlist_get_stream_position(void)
+{
+    return current_stream_position;
+}
+
+long playlist_get_stream_size(void)
+{
+    return current_stream_size;
 }
