@@ -5,6 +5,7 @@
 #include "freertos/queue.h"
 #include "mqtt_client.h"
 #include "esp_err.h"
+#include "logger.h"
 
 // Estructura para configuración MQTT
 typedef struct {
@@ -14,6 +15,8 @@ typedef struct {
     char topic_buffer[64];      // Topic para buffer
 } mqtt_config_t;
 
+const char* log_event_to_string(log_event_t event);
+
 // Conecta al broker MQTT y suscribe al topic_evento con Last Will Message
 void connect_mqtt(const char *uri, int32_t puerto, const char *topic_evento);
 
@@ -21,7 +24,7 @@ void connect_mqtt(const char *uri, int32_t puerto, const char *topic_evento);
 void almacenar_eventos(QueueHandle_t queue, const char *queue_topic);
 
 // Configura el buffer y el topic para enviar eventos cuando se reciba "Enviar"
-void enviar_eventos_buffe(int *buffer, int buffer_size, const char *buffer_topic);
+void enviar_eventos_buffe(log_event_t *buffer, int buffer_size, const char *buffer_topic);
 
 // Envía un mensaje de estado al topic de eventos
 void enviar_estado_mqtt(const char *mensaje);

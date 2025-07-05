@@ -12,6 +12,7 @@
 #include "player.h"
 #include "nvs_flash.h"
 #include "nvs.h"
+#include "logger.h"
 
 #define NVS_NAMESPACE_MQTT "mqtt_config"
 #define NVS_BROKER_KEY "broker"
@@ -24,7 +25,7 @@ static esp_mqtt_client_handle_t global_client = NULL;
 static QueueHandle_t eventos_queue = NULL;
 static char eventos_topic[64] = {0};
 static char buffer_topic[64] = {0};
-static int *eventos_buffer = NULL;
+static log_event_t *eventos_buffer = NULL;
 static int eventos_buffer_size = 0;
 
 static cJSON **eventos_json_buffer = NULL;  
@@ -34,7 +35,7 @@ static bool esperando_ack = false;
 
 // Función para publicar un JSON codificado en base64
 static int publish_json_base64(const char *topic, cJSON *json) {
-    char *json_str = cJSON_PrintUnformatted(json);
+  /*  char *json_str = cJSON_PrintUnformatted(json);
     size_t json_len = strlen(json_str);
     size_t base64_buf_size = (json_len + 3) * 4 / 3 + 1;
     unsigned char *base64_buf = malloc(base64_buf_size);
@@ -52,9 +53,31 @@ static int publish_json_base64(const char *topic, cJSON *json) {
     }
     free(base64_buf);
     cJSON_free(json_str);
-    return msg_id;
+    return msg_id;*/
+    char *json_str = cJSON_PrintUnformatted(json);
+int msg_id = esp_mqtt_client_publish(global_client, topic, json_str, 0, 1, 0);
+if (msg_id == -1) {
+    ESP_LOGE(TAG, "Error al publicar mensaje plano");
+} else {
+    ESP_LOGI(TAG, "Mensaje JSON plano publicado: %s", json_str);
+}
+cJSON_free(json_str);
+return msg_id;
 }
 
+
+const char* log_event_to_string(log_event_t event) {
+    switch (event) {
+        case LOG_EVENT_PLAY: return "PLAY";
+        case LOG_EVENT_PAUSE: return "PAUSE";
+        case LOG_EVENT_NEXT: return "NEXT";
+        case LOG_EVENT_PREV: return "PREV";
+        case LOG_EVENT_STOP: return "STOP";
+        case LOG_EVENT_VOL_UP: return "VOL_UP";
+        case LOG_EVENT_VOL_DOWN: return "VOL_DOWN";
+        default: return "UNKNOWN";
+    }
+}
 // Función para publicar el siguiente evento en la secuencia
 static void publicar_siguiente_evento(void) {
     if (eventos_json_index < eventos_json_count) {
@@ -113,9 +136,11 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
                 eventos_json_index = 0;
                 eventos_json_buffer = malloc(sizeof(cJSON *) * eventos_json_count);
                 for (int i = 0; i < eventos_json_count; i++) {
-                    eventos_json_buffer[i] = cJSON_CreateObject();
-                    cJSON_AddNumberToObject(eventos_json_buffer[i], "valor", eventos_buffer[i]);
-                }
+    eventos_json_buffer[i] = cJSON_CreateObject();
+    const char* evento_str = log_event_to_string(eventos_buffer[i]);
+cJSON_AddStringToObject(eventos_json_buffer[i], "evento", evento_str);
+    
+}
                 publicar_siguiente_evento();
             } else if (
                 strcmp(data, "play") == 0 ||
@@ -188,7 +213,7 @@ void almacenar_eventos(QueueHandle_t queue, const char *queue_topic) {
 }
 
 // Función para enviar eventos desde un buffer
-void enviar_eventos_buffe(int *buffer, int buffer_size, const char *buffer_topic_param) {
+void enviar_eventos_buffe(log_event_t *buffer, int buffer_size, const char *buffer_topic_param){
     eventos_buffer = buffer;
     eventos_buffer_size = buffer_size;
     snprintf(buffer_topic, sizeof(buffer_topic), "%s", buffer_topic_param);
@@ -287,6 +312,7 @@ static void eventos_task(void *pvParameters)
 void init_mqtt(void)
 {
     esp_err_t err = mqtt_init_from_flash();
+    mqtt_config_t config;
     if (err != ESP_OK)
     {
         ESP_LOGI(TAG, "No hay configuración MQTT en flash, usando valores por defecto");
@@ -300,7 +326,14 @@ void init_mqtt(void)
         }
 
         almacenar_eventos(eventos_queue, TOPIC_EVENTO);
-        enviar_eventos_buffe(default_eventos_buffer, BUFFER_SIZE, TOPIC_BUFFER);
+        #define MAX_LOGGER_EVENTS 22
+static log_event_t logger_events[MAX_LOGGER_EVENTS];
+size_t logger_count = 0;
+
+esp_err_t err = logger_get_events(logger_events, &logger_count);
+if (err == ESP_OK && logger_count > 0) {
+    enviar_eventos_buffe(logger_events, logger_count, config.topic_buffer);
+}
         connect_mqtt("mqtt://broker.hivemq.com", 1883, TOPIC_EVENTO);
         xTaskCreate(eventos_task, "eventos_task", 4096, NULL, 5, NULL);
         
@@ -493,7 +526,15 @@ esp_err_t mqtt_init_from_flash(void)
     }
 
     almacenar_eventos(eventos_queue, config.topic_evento);
-    enviar_eventos_buffe(default_eventos_buffer, BUFFER_SIZE, config.topic_buffer);
+    #define MAX_LOGGER_EVENTS 22
+static log_event_t logger_events[MAX_LOGGER_EVENTS];
+size_t logger_count = 0;
+
+err = logger_get_events(logger_events, &logger_count);
+if (err == ESP_OK && logger_count > 0) {
+    enviar_eventos_buffe(logger_events, logger_count, config.topic_buffer);
+}
+
     connect_mqtt(config.broker, config.puerto, config.topic_evento);
     xTaskCreate(eventos_task, "eventos_task", 4096, NULL, 5, NULL);
 

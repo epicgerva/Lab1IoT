@@ -14,9 +14,13 @@ typedef enum {
     LOG_EVENT_VOL_UP,
     LOG_EVENT_VOL_DOWN
 } log_event_t;
+
+void logger_print_buffer(void);
+
 #define LOGGER_SIZE 21
 esp_err_t logger_add_event(log_event_t event);
 esp_err_t logger_get_events(log_event_t *events, size_t *count);
 esp_err_t init_logger(void);
+
 
 #endif
