@@ -24,7 +24,7 @@
 #define TOPIC_BUFFER "lab/iot/buffer"
 #define QUEUE_LENGTH 10
 #define BUFFER_SIZE 5
-#define MAX_LOGGER_EVENTS 22
+#define MAX_LOGGER_EVENTS 21
 
 static log_event_t logger_events[MAX_LOGGER_EVENTS];
 size_t logger_count = 0;

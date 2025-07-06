@@ -7,7 +7,7 @@
 #define LOGGER_KEY_EVENT "event"
 #define LOGGER_KEY_HEAD "head"
 #define LOGGER_KEY_COUNT "count"
-#define LOGGER_SIZE 21
+#define LOGGER_SIZE 20
 
 static const char *TAG = "LOGGER";
 static log_event_t event_buffer[LOGGER_SIZE];
