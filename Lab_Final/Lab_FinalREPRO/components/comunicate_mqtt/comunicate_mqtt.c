@@ -155,12 +155,12 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
                 cJSON_AddNumberToObject(eventos_json_buffer[i], "id", i);
             }
             // DEBUG: Mostrar qué eventos se están convirtiendo a JSON
-                ESP_LOGI(TAG, "Preparando JSON para %d eventos", eventos_json_count);
-                for (int i = 0; i < eventos_json_count; i++)
-                {
-                    ESP_LOGI(TAG, "  [%02d] evento enum: %d, str: %s",
-                             i, eventos_buffer[i], log_event_to_string(eventos_buffer[i]));
-                }
+           /* ESP_LOGI(TAG, "Preparando JSON para %d eventos", eventos_json_count);
+            for (int i = 0; i < eventos_json_count; i++)
+            {
+                ESP_LOGI(TAG, "  [%02d] evento enum: %d, str: %s",
+                         i, eventos_buffer[i], log_event_to_string(eventos_buffer[i]));
+            }*/
             publicar_siguiente_evento();
         }
 
