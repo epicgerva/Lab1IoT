@@ -261,7 +261,7 @@ static void audio_task(void *args)
 
 esp_err_t player_init(QueueHandle_t *cmd_queue_out)
 {
-    if (i2s_driver_init() != ESP_OK)
+    /*if (i2s_driver_init() != ESP_OK)
     {
         ESP_LOGE(TAG, "i2s driver init failed");
         abort();
@@ -278,7 +278,7 @@ esp_err_t player_init(QueueHandle_t *cmd_queue_out)
     else
     {
         ESP_LOGI(TAG, "es8311 codec init success");
-    }
+    }*/
 
     /* Enable PA by setting the PA_CTRL_IO to high, because the power amplifier on some dev-kits are disabled by default */
     gpio_config_t gpio_cfg = {
