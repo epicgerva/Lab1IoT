@@ -183,27 +183,42 @@ static esp_err_t http_comando_handler(httpd_req_t *req)
 
 static esp_err_t http_sta_handler(httpd_req_t *req)
 {
-    char buf[POST_BUF_LEN + 1];
-    char ssid[POST_BUF_LEN + 1];
-    char password[POST_BUF_LEN + 1];
-    // Buffers for URL-decoded values
-    char ssid_decoded[POST_BUF_LEN + 1];
-    char password_decoded[POST_BUF_LEN + 1];
+    char *buf = malloc(POST_BUF_LEN + 1);
+    char *ssid = malloc(POST_BUF_LEN + 1);
+    char *password = malloc(POST_BUF_LEN + 1);
+    char *ssid_decoded = malloc(POST_BUF_LEN + 1);
+    char *password_decoded = malloc(POST_BUF_LEN + 1);
+    char *response = malloc(POST_BUF_LEN * 2);
     int ret = 0;
     int remaining = req->content_len;
+    esp_err_t result = ESP_OK;
+
+    if (!buf || !ssid || !password || !ssid_decoded || !password_decoded || !response) {
+        ESP_LOGE(TAG, "Error allocating memory for STA handler");
+        if (buf) free(buf);
+        if (ssid) free(ssid);
+        if (password) free(password);
+        if (ssid_decoded) free(ssid_decoded);
+        if (password_decoded) free(password_decoded);
+        if (response) free(response);
+        httpd_resp_send_err(req, 500, "Internal Server Error");
+        return ESP_FAIL;
+    }
 
     if (remaining == 0)
     {
         ESP_LOGW(TAG, "POST vacío");
         httpd_resp_sendstr(req, "Error: POST vacío.");
-        return ESP_OK;
+        result = ESP_OK;
+        goto cleanup;
     }
 
     if (remaining > POST_BUF_LEN)
     {
         ESP_LOGE(TAG, "POST muy largo");
         httpd_resp_send_err(req, 400, "Datos demasiado largos");
-        return ESP_FAIL;
+        result = ESP_FAIL;
+        goto cleanup;
     }
 
     ret = httpd_req_recv(req, buf, remaining);
@@ -213,11 +228,12 @@ static esp_err_t http_sta_handler(httpd_req_t *req)
         {
             httpd_resp_send_408(req);
         }
-        return ESP_FAIL;
+        result = ESP_FAIL;
+        goto cleanup;
     }
     buf[ret] = '\0';
 
-    if (httpd_query_key_value(buf, "ssid", ssid, sizeof(ssid)) == ESP_OK)
+    if (httpd_query_key_value(buf, "ssid", ssid, POST_BUF_LEN + 1) == ESP_OK)
     {
         url_decode(ssid_decoded, ssid);
         ESP_LOGI(TAG, "SSID recibido: %s", ssid_decoded);
@@ -226,10 +242,11 @@ static esp_err_t http_sta_handler(httpd_req_t *req)
     {
         ESP_LOGE(TAG, "No se encuentra el ssid en POST.");
         httpd_resp_sendstr(req, "Error: El ssid es obligatorio.");
-        return ESP_OK;
+        result = ESP_OK;
+        goto cleanup;
     }
 
-    if (httpd_query_key_value(buf, "password", password, sizeof(password)) == ESP_OK)
+    if (httpd_query_key_value(buf, "password", password, POST_BUF_LEN + 1) == ESP_OK)
     {
         url_decode(password_decoded, password);
         ESP_LOGI(TAG, "Password recibido: %s", password_decoded);
@@ -238,7 +255,8 @@ static esp_err_t http_sta_handler(httpd_req_t *req)
     {
         ESP_LOGE(TAG, "No se encuentra el password en POST.");
         httpd_resp_sendstr(req, "Error: El password es obligatorio.");
-        return ESP_OK;
+        result = ESP_OK;
+        goto cleanup;
     }
 
     // Save WiFi configuration to flash
@@ -246,42 +264,65 @@ static esp_err_t http_sta_handler(httpd_req_t *req)
     if (save_err != ESP_OK) {
         ESP_LOGE(TAG, "Error saving WiFi config: %s", esp_err_to_name(save_err));
         httpd_resp_sendstr(req, "Error: No se pudo guardar la configuracion.");
-        return ESP_OK;
+        result = ESP_OK;
+        goto cleanup;
     }
 
-    char response[POST_BUF_LEN * 2];
-    snprintf(response, sizeof(response), "Configuracion guardada. Conectando a %s. Reiniciando...", ssid_decoded);
+    snprintf(response, POST_BUF_LEN * 2, "Configuracion guardada. Conectando a %s. Reiniciando...", ssid_decoded);
     httpd_resp_sendstr(req, response);
 
     // Create task to restart the system after response is sent
     xTaskCreate(restart_task, "restart_task", 2048, NULL, 5, NULL);
+    result = ESP_OK;
 
-    return ESP_OK;
+cleanup:
+    free(buf);
+    free(ssid);
+    free(password);
+    free(ssid_decoded);
+    free(password_decoded);
+    free(response);
+    return result;
 }
 
 static esp_err_t http_ap_handler(httpd_req_t *req)
 {
-    char buf[POST_BUF_LEN + 1];
-    char ssid[POST_BUF_LEN + 1];
-    char password[POST_BUF_LEN + 1];
-    // Buffers for URL-decoded values
-    char ssid_decoded[POST_BUF_LEN + 1];
-    char password_decoded[POST_BUF_LEN + 1];
+    char *buf = malloc(POST_BUF_LEN + 1);
+    char *ssid = malloc(POST_BUF_LEN + 1);
+    char *password = malloc(POST_BUF_LEN + 1);
+    char *ssid_decoded = malloc(POST_BUF_LEN + 1);
+    char *password_decoded = malloc(POST_BUF_LEN + 1);
+    char *response = malloc(POST_BUF_LEN * 2);
     int ret = 0;
     int remaining = req->content_len;
+    esp_err_t result = ESP_OK;
+
+    if (!buf || !ssid || !password || !ssid_decoded || !password_decoded || !response) {
+        ESP_LOGE(TAG, "Error allocating memory for AP handler");
+        if (buf) free(buf);
+        if (ssid) free(ssid);
+        if (password) free(password);
+        if (ssid_decoded) free(ssid_decoded);
+        if (password_decoded) free(password_decoded);
+        if (response) free(response);
+        httpd_resp_send_err(req, 500, "Internal Server Error");
+        return ESP_FAIL;
+    }
 
     if (remaining == 0)
     {
         ESP_LOGW(TAG, "POST vacío");
         httpd_resp_sendstr(req, "Error: POST vacío.");
-        return ESP_OK;
+        result = ESP_OK;
+        goto cleanup;
     }
 
     if (remaining > POST_BUF_LEN)
     {
         ESP_LOGE(TAG, "POST muy largo");
         httpd_resp_send_err(req, 400, "Datos demasiado largos");
-        return ESP_FAIL;
+        result = ESP_FAIL;
+        goto cleanup;
     }
 
     ret = httpd_req_recv(req, buf, remaining);
@@ -291,11 +332,12 @@ static esp_err_t http_ap_handler(httpd_req_t *req)
         {
             httpd_resp_send_408(req);
         }
-        return ESP_FAIL;
+        result = ESP_FAIL;
+        goto cleanup;
     }
     buf[ret] = '\0';
 
-    if (httpd_query_key_value(buf, "ssid", ssid, sizeof(ssid)) == ESP_OK)
+    if (httpd_query_key_value(buf, "ssid", ssid, POST_BUF_LEN + 1) == ESP_OK)
     {
         url_decode(ssid_decoded, ssid);
         ESP_LOGI(TAG, "SSID recibido: %s", ssid_decoded);
@@ -304,10 +346,11 @@ static esp_err_t http_ap_handler(httpd_req_t *req)
     {
         ESP_LOGE(TAG, "No se encuentra el ssid en POST.");
         httpd_resp_sendstr(req, "Error: El ssid es obligatorio.");
-        return ESP_OK;
+        result = ESP_OK;
+        goto cleanup;
     }
 
-    if (httpd_query_key_value(buf, "password", password, sizeof(password)) == ESP_OK)
+    if (httpd_query_key_value(buf, "password", password, POST_BUF_LEN + 1) == ESP_OK)
     {
         url_decode(password_decoded, password);
         ESP_LOGI(TAG, "Password recibido: %s", password_decoded);
@@ -316,7 +359,8 @@ static esp_err_t http_ap_handler(httpd_req_t *req)
     {
         ESP_LOGE(TAG, "No se encuentra el password en POST.");
         httpd_resp_sendstr(req, "Error: El password es obligatorio.");
-        return ESP_OK;
+        result = ESP_OK;
+        goto cleanup;
     }
 
     // Save WiFi configuration to flash
@@ -324,17 +368,25 @@ static esp_err_t http_ap_handler(httpd_req_t *req)
     if (save_err != ESP_OK) {
         ESP_LOGE(TAG, "Error saving WiFi config: %s", esp_err_to_name(save_err));
         httpd_resp_sendstr(req, "Error: No se pudo guardar la configuracion.");
-        return ESP_OK;
+        result = ESP_OK;
+        goto cleanup;
     }
 
-    char response[POST_BUF_LEN * 2];
-    snprintf(response, sizeof(response), "Configuracion guardada. Creando AP %s. Reiniciando...", ssid_decoded);
+    snprintf(response, POST_BUF_LEN * 2, "Configuracion guardada. Creando AP %s. Reiniciando...", ssid_decoded);
     httpd_resp_sendstr(req, response);
 
     // Create task to restart the system after response is sent
     xTaskCreate(restart_task, "restart_task", 2048, NULL, 5, NULL);
+    result = ESP_OK;
 
-    return ESP_OK;
+cleanup:
+    free(buf);
+    free(ssid);
+    free(password);
+    free(ssid_decoded);
+    free(password_decoded);
+    free(response);
+    return result;
 }
 
 static esp_err_t http_mqtt_handler(httpd_req_t *req)
