@@ -26,5 +26,5 @@ void app_main(void)
     init_player();
     init_logger();
     init_mqtt();
-    //init_touch();
+    // init_touch();
 }

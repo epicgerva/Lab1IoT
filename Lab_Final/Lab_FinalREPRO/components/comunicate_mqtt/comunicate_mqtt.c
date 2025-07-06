@@ -19,7 +19,16 @@
 #define NVS_PUERTO_KEY "puerto"
 #define NVS_TOPIC_EVENTO_KEY "topic_evento"
 #define NVS_TOPIC_BUFFER_KEY "topic_buffer"
+#define MAX_LOGGER_EVENTS 22
+#define TOPIC_EVENTO "lab/iot/eventos"
+#define TOPIC_BUFFER "lab/iot/buffer"
+#define QUEUE_LENGTH 10
+#define BUFFER_SIZE 5
+#define MAX_LOGGER_EVENTS 22
 
+static log_event_t logger_events[MAX_LOGGER_EVENTS];
+size_t logger_count = 0;
+static QueueHandle_t eventos_queue;
 static const char *TAG = "comunicate_mqtt";
 static esp_mqtt_client_handle_t global_client = NULL;
 static QueueHandle_t eventos_queue = NULL;
@@ -28,69 +37,83 @@ static char buffer_topic[64] = {0};
 static log_event_t *eventos_buffer = NULL;
 static int eventos_buffer_size = 0;
 
-static cJSON **eventos_json_buffer = NULL;  
-static int eventos_json_count = 0;          
-static int eventos_json_index = 0;          
-static bool esperando_ack = false;     
+static cJSON **eventos_json_buffer = NULL;
+static int eventos_json_count = 0;
+static int eventos_json_index = 0;
+static bool esperando_ack = false;
 
 // Función para publicar un JSON codificado en base64
-static int publish_json_base64(const char *topic, cJSON *json) {
-  /*  char *json_str = cJSON_PrintUnformatted(json);
+static int publish_json_base64(const char *topic, cJSON *json)
+{
+    char *json_str = cJSON_PrintUnformatted(json);
     size_t json_len = strlen(json_str);
     size_t base64_buf_size = (json_len + 3) * 4 / 3 + 1;
     unsigned char *base64_buf = malloc(base64_buf_size);
     int msg_id = -1;
     size_t base64_len = 0;
 
-    if (mbedtls_base64_encode(base64_buf, base64_buf_size, &base64_len, (const unsigned char *)json_str, json_len) == 0) {
+    if (mbedtls_base64_encode(base64_buf, base64_buf_size, &base64_len, (const unsigned char *)json_str, json_len) == 0)
+    {
         base64_buf[base64_len] = '\0';
         msg_id = esp_mqtt_client_publish(global_client, topic, (const char *)base64_buf, 0, 1, 0);
-        if (msg_id == -1) {
+        if (msg_id == -1)
+        {
             ESP_LOGE(TAG, "Error al publicar mensaje");
         }
-    } else {
+    }
+    else
+    {
         ESP_LOGE(TAG, "Error codificando en base64");
     }
     free(base64_buf);
     cJSON_free(json_str);
-    return msg_id;*/
-    char *json_str = cJSON_PrintUnformatted(json);
-int msg_id = esp_mqtt_client_publish(global_client, topic, json_str, 0, 1, 0);
-if (msg_id == -1) {
-    ESP_LOGE(TAG, "Error al publicar mensaje plano");
-} else {
-    ESP_LOGI(TAG, "Mensaje JSON plano publicado: %s", json_str);
-}
-cJSON_free(json_str);
-return msg_id;
+    return msg_id;
 }
 
-
-const char* log_event_to_string(log_event_t event) {
-    switch (event) {
-        case LOG_EVENT_PLAY: return "PLAY";
-        case LOG_EVENT_PAUSE: return "PAUSE";
-        case LOG_EVENT_NEXT: return "NEXT";
-        case LOG_EVENT_PREV: return "PREV";
-        case LOG_EVENT_STOP: return "STOP";
-        case LOG_EVENT_VOL_UP: return "VOL_UP";
-        case LOG_EVENT_VOL_DOWN: return "VOL_DOWN";
-        default: return "UNKNOWN";
+const char *log_event_to_string(log_event_t event)
+{
+    switch (event)
+    {
+    case LOG_EVENT_PLAY:
+        return "PLAY";
+    case LOG_EVENT_PAUSE:
+        return "PAUSE";
+    case LOG_EVENT_NEXT:
+        return "NEXT";
+    case LOG_EVENT_PREV:
+        return "PREV";
+    case LOG_EVENT_STOP:
+        return "STOP";
+    case LOG_EVENT_VOL_UP:
+        return "VOL_UP";
+    case LOG_EVENT_VOL_DOWN:
+        return "VOL_DOWN";
+    default:
+        return "UNKNOWN";
     }
 }
+
 // Función para publicar el siguiente evento en la secuencia
-static void publicar_siguiente_evento(void) {
-    if (eventos_json_index < eventos_json_count) {
+static void publicar_siguiente_evento(void)
+{
+    if (eventos_json_index < eventos_json_count)
+    {
         int msg_id = publish_json_base64(buffer_topic, eventos_json_buffer[eventos_json_index]);
-        if (msg_id != -1) {
+        if (msg_id != -1)
+        {
             esperando_ack = true;
             ESP_LOGI(TAG, "Publicado msg_id=%d (índice %d)", msg_id, eventos_json_index);
-        } else {
+        }
+        else
+        {
             ESP_LOGE(TAG, "Error publicando mensaje en índice %d", eventos_json_index);
         }
-    } else {
+    }
+    else
+    {
         ESP_LOGI(TAG, "Todos los eventos publicados");
-        for (int i = 0; i < eventos_json_count; i++) {
+        for (int i = 0; i < eventos_json_count; i++)
+        {
             cJSON_Delete(eventos_json_buffer[i]);
         }
         free(eventos_json_buffer);
@@ -102,11 +125,14 @@ static void publicar_siguiente_evento(void) {
 }
 
 // Manejador de eventos MQTT
-static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data) {
+static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
+{
     esp_mqtt_event_handle_t event = event_data;
 
-    switch ((esp_mqtt_event_id_t)event_id) {
-    case MQTT_EVENT_CONNECTED: {
+    switch ((esp_mqtt_event_id_t)event_id)
+    {
+    case MQTT_EVENT_CONNECTED:
+    {
         ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
         global_client = event->client;
         esp_mqtt_client_subscribe(global_client, eventos_topic, 1);
@@ -115,9 +141,33 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         cJSON_AddStringToObject(json, "evento", "Conexion establecida");
         publish_json_base64(eventos_topic, json);
         cJSON_Delete(json);
+        if (eventos_buffer && eventos_buffer_size > 0 && eventos_json_buffer == NULL)
+        {
+            ESP_LOGI(TAG, "Enviando eventos automáticamente al reconectar...");
+            eventos_json_count = eventos_buffer_size;
+            eventos_json_index = 0;
+            eventos_json_buffer = malloc(sizeof(cJSON *) * eventos_json_count);
+            for (int i = 0; i < eventos_json_count; i++)
+            {
+                eventos_json_buffer[i] = cJSON_CreateObject();
+                const char *evento_str = log_event_to_string(eventos_buffer[i]);
+                cJSON_AddStringToObject(eventos_json_buffer[i], "evento", evento_str);
+                cJSON_AddNumberToObject(eventos_json_buffer[i], "id", i);
+            }
+            // DEBUG: Mostrar qué eventos se están convirtiendo a JSON
+                ESP_LOGI(TAG, "Preparando JSON para %d eventos", eventos_json_count);
+                for (int i = 0; i < eventos_json_count; i++)
+                {
+                    ESP_LOGI(TAG, "  [%02d] evento enum: %d, str: %s",
+                             i, eventos_buffer[i], log_event_to_string(eventos_buffer[i]));
+                }
+            publicar_siguiente_evento();
+        }
+
         break;
     }
-    case MQTT_EVENT_DATA: {
+    case MQTT_EVENT_DATA:
+    {
         char topic[event->topic_len + 1];
         memcpy(topic, event->topic, event->topic_len);
         topic[event->topic_len] = '\0';
@@ -126,57 +176,60 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         memcpy(data, event->data, event->data_len);
         data[event->data_len] = '\0';
 
-        if (strcmp(topic, eventos_topic) == 0) {
-            if (strcmp(data, "Enviar") == 0 && eventos_buffer && eventos_buffer_size > 0) {
-                if (eventos_json_buffer != NULL) {
+        if (strcmp(topic, eventos_topic) == 0)
+        {
+            if (strcmp(data, "Enviar") == 0 && eventos_buffer && eventos_buffer_size > 0)
+            {
+                if (eventos_json_buffer != NULL)
+                {
                     ESP_LOGW(TAG, "Ya hay una publicación en curso, ignorando comando Enviar");
                     break;
                 }
                 eventos_json_count = eventos_buffer_size;
                 eventos_json_index = 0;
                 eventos_json_buffer = malloc(sizeof(cJSON *) * eventos_json_count);
-                // DEBUG: Mostrar qué eventos se están convirtiendo a JSON
-    ESP_LOGI(TAG, "Preparando JSON para %d eventos", eventos_json_count);
-    for (int i = 0; i < eventos_json_count; i++) {
-        ESP_LOGI(TAG, "  [%02d] evento enum: %d, str: %s", 
-                 i, eventos_buffer[i], log_event_to_string(eventos_buffer[i]));
-    }
-                for (int i = 0; i < eventos_json_count; i++) {
-    eventos_json_buffer[i] = cJSON_CreateObject();
-    const char* evento_str = log_event_to_string(eventos_buffer[i]);
-cJSON_AddStringToObject(eventos_json_buffer[i], "evento", evento_str);
- cJSON_AddNumberToObject(eventos_json_buffer[i], "id", i);
-    
-}
+                for (int i = 0; i < eventos_json_count; i++)
+                {
+                    eventos_json_buffer[i] = cJSON_CreateObject();
+                    const char *evento_str = log_event_to_string(eventos_buffer[i]);
+                    cJSON_AddStringToObject(eventos_json_buffer[i], "evento", evento_str);
+                    cJSON_AddNumberToObject(eventos_json_buffer[i], "id", i);
+                }
                 publicar_siguiente_evento();
-            } else if (
+            }
+            else if (
                 strcmp(data, "play") == 0 ||
                 strcmp(data, "pause") == 0 ||
                 strcmp(data, "stop") == 0 ||
                 strcmp(data, "next") == 0 ||
                 strcmp(data, "prev") == 0 ||
                 strcmp(data, "volup") == 0 ||
-                strcmp(data, "voldown") == 0
-            ) {
+                strcmp(data, "voldown") == 0)
+            {
 
-                if (eventos_queue) {
+                if (eventos_queue)
+                {
                     char *cmd = malloc(strlen(data) + 1);
                     strcpy(cmd, data);
                     xQueueSend(eventos_queue, &cmd, 0);
                     ESP_LOGI(TAG, "Comando MQTT recibido: %s", data);
                 }
-            } else {
+            }
+            else
+            {
                 ESP_LOGW(TAG, "Comando MQTT inválido recibido: %s", data);
             }
         }
         break;
     }
-    case MQTT_EVENT_PUBLISHED: {
+    case MQTT_EVENT_PUBLISHED:
+    {
         ESP_LOGI(TAG, "Mensaje publicado con msg_id=%d", event->msg_id);
-        if (esperando_ack) {
+        if (esperando_ack)
+        {
             eventos_json_index++;
             esperando_ack = false;
-            publicar_siguiente_evento();  
+            publicar_siguiente_evento();
         }
         break;
     }
@@ -186,7 +239,8 @@ cJSON_AddStringToObject(eventos_json_buffer[i], "evento", evento_str);
 }
 
 // Función para conectar al broker MQTT
-void connect_mqtt(const char *uri, int32_t puerto, const char *topic_evento) {
+void connect_mqtt(const char *uri, int32_t puerto, const char *topic_evento)
+{
     snprintf(eventos_topic, sizeof(eventos_topic), "%s", topic_evento);
 
     cJSON *lwt_json = cJSON_CreateObject();
@@ -214,17 +268,20 @@ void connect_mqtt(const char *uri, int32_t puerto, const char *topic_evento) {
 }
 
 // Función para almacenar eventos en la cola
-void almacenar_eventos(QueueHandle_t queue, const char *queue_topic) {
+void almacenar_eventos(QueueHandle_t queue, const char *queue_topic)
+{
     eventos_queue = queue;
     snprintf(eventos_topic, sizeof(eventos_topic), "%s", queue_topic);
 }
 
 // Función para enviar eventos desde un buffer
-void enviar_eventos_buffe(log_event_t *buffer, int buffer_size, const char *buffer_topic_param){
+void enviar_eventos_buffe(log_event_t *buffer, int buffer_size, const char *buffer_topic_param)
+{
     eventos_buffer_size = buffer_size;
     snprintf(buffer_topic, sizeof(buffer_topic), "%s", buffer_topic_param);
 
-    if (eventos_buffer != NULL) {
+    if (eventos_buffer != NULL)
+    {
         free(eventos_buffer);
     }
     eventos_buffer = malloc(buffer_size * sizeof(log_event_t));
@@ -232,30 +289,29 @@ void enviar_eventos_buffe(log_event_t *buffer, int buffer_size, const char *buff
 }
 
 // Función para enviar mensajes de estado
-void enviar_estado_mqtt(const char *mensaje) {
-    if (global_client && strlen(eventos_topic) > 0) {
+void enviar_estado_mqtt(const char *mensaje)
+{
+    if (global_client && strlen(eventos_topic) > 0)
+    {
         cJSON *json = cJSON_CreateObject();
         cJSON_AddStringToObject(json, "estado", mensaje);
         cJSON_AddStringToObject(json, "timestamp", "now");
         int msg_id = publish_json_base64(eventos_topic, json);
-        if (msg_id != -1) {
+        if (msg_id != -1)
+        {
             ESP_LOGI(TAG, "Estado enviado: %s", mensaje);
-        } else {
+        }
+        else
+        {
             ESP_LOGE(TAG, "Error enviando estado: %s", mensaje);
         }
         cJSON_Delete(json);
-    } else {
+    }
+    else
+    {
         ESP_LOGW(TAG, "MQTT no conectado, no se puede enviar estado: %s", mensaje);
     }
 }
-
-#define TOPIC_EVENTO "lab/iot/eventos"
-#define TOPIC_BUFFER "lab/iot/buffer"
-#define QUEUE_LENGTH 10
-#define BUFFER_SIZE 5
-
-static QueueHandle_t eventos_queue;
-static int default_eventos_buffer[BUFFER_SIZE] = {10, 20, 30, 40, 50};
 
 static void eventos_task(void *pvParameters)
 {
@@ -263,59 +319,59 @@ static void eventos_task(void *pvParameters)
     while (1)
     {
         if (xQueueReceive(eventos_queue, &cmd, portMAX_DELAY))
-        { 
+        {
             ESP_LOGI(TAG, "Comando MQTT recibido: %s", cmd);
-            
-            if (strcmp(cmd, "play") == 0) 
+
+            if (strcmp(cmd, "play") == 0)
             {
                 player_send_cmd(CMD_PLAY);
                 ESP_LOGI(TAG, "Ejecutando: PLAY");
                 enviar_estado_mqtt("Comando PLAY ejecutado");
-            } 
-            else if (strcmp(cmd, "pause") == 0 || strcmp(cmd, "pausa") == 0) 
+            }
+            else if (strcmp(cmd, "pause") == 0 || strcmp(cmd, "pausa") == 0)
             {
                 player_send_cmd(CMD_PAUSE);
                 ESP_LOGI(TAG, "Ejecutando: PAUSE");
                 enviar_estado_mqtt("Comando PAUSE ejecutado");
             }
-            else if (strcmp(cmd, "stop") == 0 || strcmp(cmd, "detener") == 0) 
+            else if (strcmp(cmd, "stop") == 0 || strcmp(cmd, "detener") == 0)
             {
                 player_send_cmd(CMD_STOP);
                 ESP_LOGI(TAG, "Ejecutando: STOP");
                 enviar_estado_mqtt("Comando STOP ejecutado");
             }
-            else if (strcmp(cmd, "next") == 0 || strcmp(cmd, "siguiente") == 0) 
+            else if (strcmp(cmd, "next") == 0 || strcmp(cmd, "siguiente") == 0)
             {
                 player_send_cmd(CMD_NEXT);
                 ESP_LOGI(TAG, "Ejecutando: NEXT");
                 enviar_estado_mqtt("Comando NEXT ejecutado");
             }
-            else if (strcmp(cmd, "prev") == 0 || strcmp(cmd, "anterior") == 0) 
+            else if (strcmp(cmd, "prev") == 0 || strcmp(cmd, "anterior") == 0)
             {
                 player_send_cmd(CMD_PREV);
                 ESP_LOGI(TAG, "Ejecutando: PREV");
                 enviar_estado_mqtt("Comando PREV ejecutado");
             }
-            else if (strcmp(cmd, "volup") == 0) 
+            else if (strcmp(cmd, "volup") == 0)
             {
                 player_send_cmd(CMD_VOL_UP);
                 ESP_LOGI(TAG, "Ejecutando: VOLUME UP");
                 enviar_estado_mqtt("Comando VOLUME UP ejecutado");
             }
-            else if (strcmp(cmd, "voldown") == 0) 
+            else if (strcmp(cmd, "voldown") == 0)
             {
                 player_send_cmd(CMD_VOL_DOWN);
                 ESP_LOGI(TAG, "Ejecutando: VOLUME DOWN");
                 enviar_estado_mqtt("Comando VOLUME DOWN ejecutado");
             }
-            else 
+            else
             {
                 ESP_LOGW(TAG, "Comando desconocido: %s", cmd);
                 char error_msg[64];
                 snprintf(error_msg, sizeof(error_msg), "Comando desconocido: %s", cmd);
                 enviar_estado_mqtt(error_msg);
             }
-            
+
             free(cmd);
         }
     }
@@ -328,7 +384,7 @@ void init_mqtt(void)
     if (err != ESP_OK)
     {
         ESP_LOGI(TAG, "No hay configuración MQTT en flash, usando valores por defecto");
-        
+
         // Usar valores por defecto
         eventos_queue = xQueueCreate(QUEUE_LENGTH, sizeof(char *));
         if (eventos_queue == NULL)
@@ -338,17 +394,15 @@ void init_mqtt(void)
         }
 
         almacenar_eventos(eventos_queue, TOPIC_EVENTO);
-        #define MAX_LOGGER_EVENTS 22
-static log_event_t logger_events[MAX_LOGGER_EVENTS];
-size_t logger_count = 0;
 
-esp_err_t err = logger_get_events(logger_events, &logger_count);
-if (err == ESP_OK && logger_count > 0) {
-    enviar_eventos_buffe(logger_events, logger_count, config.topic_buffer);
-}
+        esp_err_t err = logger_get_events(logger_events, &logger_count);
+        if (err == ESP_OK && logger_count > 0)
+        {
+            enviar_eventos_buffe(logger_events, logger_count, config.topic_buffer);
+        }
         connect_mqtt("mqtt://broker.hivemq.com", 1883, TOPIC_EVENTO);
         xTaskCreate(eventos_task, "eventos_task", 4096, NULL, 5, NULL);
-        
+
         // Guardar configuración por defecto
         mqtt_config_t default_config;
         strcpy(default_config.broker, "mqtt://broker.hivemq.com");
@@ -538,14 +592,12 @@ esp_err_t mqtt_init_from_flash(void)
     }
 
     almacenar_eventos(eventos_queue, config.topic_evento);
-    #define MAX_LOGGER_EVENTS 22
-static log_event_t logger_events[MAX_LOGGER_EVENTS];
-size_t logger_count = 0;
 
-err = logger_get_events(logger_events, &logger_count);
-if (err == ESP_OK && logger_count > 0) {
-    enviar_eventos_buffe(logger_events, logger_count, config.topic_buffer);
-}
+    err = logger_get_events(logger_events, &logger_count);
+    if (err == ESP_OK && logger_count > 0)
+    {
+        enviar_eventos_buffe(logger_events, logger_count, config.topic_buffer);
+    }
 
     connect_mqtt(config.broker, config.puerto, config.topic_evento);
     xTaskCreate(eventos_task, "eventos_task", 4096, NULL, 5, NULL);
