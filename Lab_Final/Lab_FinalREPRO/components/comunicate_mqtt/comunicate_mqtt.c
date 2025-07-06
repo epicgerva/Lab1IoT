@@ -135,10 +135,17 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
                 eventos_json_count = eventos_buffer_size;
                 eventos_json_index = 0;
                 eventos_json_buffer = malloc(sizeof(cJSON *) * eventos_json_count);
+                // DEBUG: Mostrar qué eventos se están convirtiendo a JSON
+    ESP_LOGI(TAG, "Preparando JSON para %d eventos", eventos_json_count);
+    for (int i = 0; i < eventos_json_count; i++) {
+        ESP_LOGI(TAG, "  [%02d] evento enum: %d, str: %s", 
+                 i, eventos_buffer[i], log_event_to_string(eventos_buffer[i]));
+    }
                 for (int i = 0; i < eventos_json_count; i++) {
     eventos_json_buffer[i] = cJSON_CreateObject();
     const char* evento_str = log_event_to_string(eventos_buffer[i]);
 cJSON_AddStringToObject(eventos_json_buffer[i], "evento", evento_str);
+ cJSON_AddNumberToObject(eventos_json_buffer[i], "id", i);
     
 }
                 publicar_siguiente_evento();
@@ -214,9 +221,14 @@ void almacenar_eventos(QueueHandle_t queue, const char *queue_topic) {
 
 // Función para enviar eventos desde un buffer
 void enviar_eventos_buffe(log_event_t *buffer, int buffer_size, const char *buffer_topic_param){
-    eventos_buffer = buffer;
     eventos_buffer_size = buffer_size;
     snprintf(buffer_topic, sizeof(buffer_topic), "%s", buffer_topic_param);
+
+    if (eventos_buffer != NULL) {
+        free(eventos_buffer);
+    }
+    eventos_buffer = malloc(buffer_size * sizeof(log_event_t));
+    memcpy(eventos_buffer, buffer, buffer_size * sizeof(log_event_t));
 }
 
 // Función para enviar mensajes de estado
