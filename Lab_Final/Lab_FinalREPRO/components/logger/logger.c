@@ -88,7 +88,7 @@ esp_err_t logger_add_event(log_event_t event)
     if (count < LOGGER_SIZE)
         count++;
     logger_save_head_and_count();
-    logger_print_buffer();
+    //logger_print_buffer();
     return ESP_OK;
 }
 

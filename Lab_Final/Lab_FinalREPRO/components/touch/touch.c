@@ -26,7 +26,7 @@ static const touch_pad_t channel_array[TOUCH_BUTTON_NUM] = {
     TOUCH_PAD_NUM11, // NETWORK
     TOUCH_PAD_NUM12,
     TOUCH_PAD_NUM13,
-    TOUCH_PAD_NUM14, // VOLUME DOWN
+    TOUCH_PAD_NUM14, 
 };
 
 static const float channel_sens_array[TOUCH_BUTTON_NUM] = {
@@ -109,7 +109,7 @@ static void touchpad_task(void *args)
     while (1)
     {
         touch_update();
-
+        
         if (touch_pressed(TOUCH_VOLUME_UP))
         {
             ESP_LOGI(TAG, "Touch: VOLUME UP");
@@ -119,6 +119,7 @@ static void touchpad_task(void *args)
         {
             ESP_LOGI(TAG, "Touch: VOLUME DOWN");
             player_send_cmd(CMD_VOL_DOWN);
+            //printf("ww\n");
         }
         if (touch_pressed(TOUCH_PLAY_PAUSE))
         {
