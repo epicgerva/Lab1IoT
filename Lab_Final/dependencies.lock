@@ -1,0 +1,18 @@
+dependencies:
+  hfudev/json:
+    component_hash: 1d5a0b0c751cb21059d04052e4a215cfe0f1468abf950a812119f568b722b945
+    dependencies: []
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 0.1.0
+  idf:
+    source:
+      type: idf
+    version: 5.4.1
+direct_dependencies:
+- hfudev/json
+- idf
+manifest_hash: 8ebfa083cee3c5f42fbd91346fac96dddd792845bb7f75d37bc28b9c70abc0f2
+target: esp32s2
+version: 2.0.0
