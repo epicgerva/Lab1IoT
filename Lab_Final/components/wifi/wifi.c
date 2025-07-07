@@ -10,6 +10,7 @@
 #include "lwip/err.h"
 #include "lwip/sys.h"
 #include "http.h"
+#include "ntp.h"
 
 #define NVS_NAMESPACE "wifi_config"
 #define NVS_MODE_KEY "mode"
@@ -64,6 +65,8 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
             wifi_event_sta_disconnected_t *event = (wifi_event_sta_disconnected_t *)event_data;
             ESP_LOGW(TAG, "STA: WIFI_EVENT_STA_DISCONNECTED, reason: %d", event->reason);
 
+            ntp_stop();
+
             if (wifi_retry_count < MAX_RETRY_ATTEMPTS)
             {
                 wifi_retry_count++;
@@ -84,6 +87,17 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
     {
         ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
         ESP_LOGI(TAG, "STA: Got IP address:" IPSTR, IP2STR(&event->ip_info.ip));
+        
+        ESP_LOGI(TAG, "Starting NTP sync...");
+        if (ntp_init() == ESP_OK) {
+            if (ntp_start() == ESP_OK) {
+                ESP_LOGI(TAG, "NTP sync started ");
+            } else {
+                ESP_LOGW(TAG, "NTP sync failed, retrying...");
+            }
+        } else {
+            ESP_LOGE(TAG, "Failed to initialize NTP");
+        }
     }
 }
 
